@@ -1,22 +1,24 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import "@/styles/globals.scss";
-import Navbar from "@/components/layout/Navbar/Navbar";
+import Providers from "@/components/Providers";
+
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Coding Club IITG",
-  description: "Official website of Coding Club IITG",
+  description: "Internal Workspace for Coding Club IITG",
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="en">
-      <body>
-        <Navbar />
-        {children}
+      <body className={inter.className}>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

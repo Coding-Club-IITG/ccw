@@ -14,6 +14,10 @@ declare module "next-auth" {
           | "Design";
         role: "Head" | "Senior Coordinator" | "Coordinator" | "Member";
       }[];
+      codeforcesId?: string;
+      githubId?: string;
+      bio?: string;
+      phoneNumber?: string;
     } & DefaultSession["user"];
   }
 
@@ -28,6 +32,10 @@ declare module "next-auth" {
         | "Design";
       role: "Head" | "Senior Coordinator" | "Coordinator" | "Member";
     }[];
+    codeforcesId?: string;
+    githubId?: string;
+    bio?: string;
+    phoneNumber?: string;
   }
 }
 
@@ -44,5 +52,9 @@ declare module "next-auth/jwt" {
         | "Design";
       role: "Head" | "Senior Coordinator" | "Coordinator" | "Member";
     }[];
+    codeforcesId?: string;
+    githubId?: string;
+    bio?: string;
+    phoneNumber?: string;
   }
 }

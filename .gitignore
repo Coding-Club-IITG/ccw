@@ -1,5 +1,23 @@
-node_modules
-.next
+# Environment
 .env
-.env.local
+.env*.local
+
+# Dependencies
+node_modules/
+
+# Debug
+.log*
+
+# NextJS
+.next/
+out/
+build/
+
+# Typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# Misc
+.DS_Store
+*.pem
 .gemini

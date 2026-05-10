@@ -36,6 +36,10 @@
     border-radius: 4px;
     font-weight: 500;
     transition: opacity 0.2s;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: inherit;
 
     &:hover {
       opacity: 0.9;

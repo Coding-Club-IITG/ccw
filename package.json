@@ -7,29 +7,29 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "init-admin": "ts-node scripts/init-admin.ts"
+    "seed": "ts-node scripts/seed.ts"
   },
   "dependencies": {
-    "clsx": "latest",
-    "lucide-react": "latest",
-    "mongoose": "latest",
-    "next": "latest",
-    "next-auth": "5.0.0-beta.25",
-    "react": "latest",
-    "react-dom": "latest",
-    "redis": "latest",
-    "sass": "latest",
-    "tailwind-merge": "latest",
-    "zustand": "latest"
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.14.0",
+    "mongoose": "^9.6.2",
+    "next": "^16.2.6",
+    "next-auth": "5.0.0-beta.31",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "redis": "^5.12.1",
+    "sass": "^1.99.0",
+    "tailwind-merge": "^3.5.0",
+    "zustand": "^5.0.13"
   },
   "devDependencies": {
-    "@types/node": "latest",
-    "@types/react": "latest",
-    "@types/react-dom": "latest",
+    "@types/node": "^25.6.2",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
     "dotenv": "^17.4.2",
-    "eslint": "latest",
-    "eslint-config-next": "latest",
+    "eslint": "^10.3.0",
+    "eslint-config-next": "^16.2.6",
     "ts-node": "^10.9.2",
-    "typescript": "latest"
+    "typescript": "^6.0.3"
   }
 }

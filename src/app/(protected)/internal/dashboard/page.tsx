@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { isAdmin } from "@/lib/utils";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -42,11 +43,12 @@ export default async function DashboardPage() {
           <h3>Quick Links</h3>
           <ul>
             <li>
+              <a href="/internal/profile">Update Profile</a>
+            </li>
+            <li>
               <a href="/internal/files">Files Sharing</a>
             </li>
-            {(session.user.role === "Secretary" ||
-              session.user.role === "OC" ||
-              session.user.role === "Core Team") && (
+            {isAdmin(session.user.role) && (
               <li>
                 <a href="/admin">Website Administration</a>
               </li>

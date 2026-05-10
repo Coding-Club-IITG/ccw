@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { auth } from "@/lib/auth";
+import { auth, signIn, signOut } from "@/lib/auth";
 import styles from "./Navbar.module.scss";
 
 export default async function Navbar() {
@@ -7,19 +7,55 @@ export default async function Navbar() {
 
   return (
     <nav className={styles.navbar}>
-      <Link href="/" className={styles.logo}>
+      <Link
+        href={session ? "/internal/dashboard" : "/"}
+        className={styles.logo}
+      >
         CC IITG
       </Link>
       <div className={styles.navLinks}>
-        <Link href="/">Home</Link>
-        <Link href="/projects">Projects</Link>
-        <Link href="/team">Team</Link>
         {session ? (
-          <Link href="/internal/dashboard">Dashboard</Link>
+          <>
+            <Link href="/internal/dashboard" className={styles.dashboardLink}>
+              Dashboard
+            </Link>
+            <Link href="/internal/profile">Profile</Link>
+            <Link href="/internal/files">Files</Link>
+            <form
+              action={async () => {
+                "use server";
+                await signOut();
+              }}
+            >
+              <button type="submit" className={styles.authButton}>
+                Logout
+              </button>
+            </form>
+          </>
         ) : (
-          <Link href="/login" className={styles.authButton}>
-            Login
-          </Link>
+          <>
+            <Link href="/">Home</Link>
+            <Link href="/projects">Projects</Link>
+            <Link href="/team">Team</Link>
+            <form
+              action={async () => {
+                "use server";
+                if (process.env.NODE_ENV === "development") {
+                  await signIn("dev-login", {
+                    redirectTo: "/internal/dashboard",
+                  });
+                } else {
+                  await signIn("microsoft-entra-id", {
+                    redirectTo: "/internal/dashboard",
+                  });
+                }
+              }}
+            >
+              <button type="submit" className={styles.authButton}>
+                Login
+              </button>
+            </form>
+          </>
         )}
       </div>
     </nav>

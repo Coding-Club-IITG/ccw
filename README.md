@@ -29,9 +29,10 @@ The official web platform for Coding Club IITG.
 
 ## Getting Started
 
-1. **Install dependencies:**
+1. **Prepare:**
    ```bash
    pnpm install
+   pnpm seed
    ```
 2. **Run in development mode:**
    ```bash
@@ -40,16 +41,6 @@ The official web platform for Coding Club IITG.
 3. **Build for production:**
    ```bash
    pnpm build
-   ```
-
-## Administrative Setup
-
-To grant access to yourself or a new member, you can use the built-in initialization script:
-
-1. Ensure your `.env.local` has a valid `MONGODB_URI`.
-2. Run the script:
-   ```bash
-   pnpm init-admin
    ```
 
 ## Contributing
