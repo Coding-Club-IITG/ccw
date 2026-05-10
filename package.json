@@ -1,0 +1,35 @@
+{
+  "name": "ccw",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "init-admin": "ts-node scripts/init-admin.ts"
+  },
+  "dependencies": {
+    "clsx": "latest",
+    "lucide-react": "latest",
+    "mongoose": "latest",
+    "next": "latest",
+    "next-auth": "5.0.0-beta.25",
+    "react": "latest",
+    "react-dom": "latest",
+    "redis": "latest",
+    "sass": "latest",
+    "tailwind-merge": "latest",
+    "zustand": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "dotenv": "^17.4.2",
+    "eslint": "latest",
+    "eslint-config-next": "latest",
+    "ts-node": "^10.9.2",
+    "typescript": "latest"
+  }
+}
