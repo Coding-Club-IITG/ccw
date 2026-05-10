@@ -7,9 +7,13 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "seed": "ts-node scripts/seed.ts"
+    "seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
+    "@agendajs/mongo-backend": "^4.0.1",
+    "@agendajs/redis-backend": "^3.0.5",
+    "agenda": "^6.2.4",
+    "axios": "^1.16.0",
     "clsx": "^2.1.1",
     "lucide-react": "^1.14.0",
     "mongoose": "^9.6.2",
@@ -29,7 +33,7 @@
     "dotenv": "^17.4.2",
     "eslint": "^10.3.0",
     "eslint-config-next": "^16.2.6",
-    "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
     "typescript": "^6.0.3"
   }
 }

@@ -46,6 +46,9 @@ export default async function DashboardPage() {
               <a href="/internal/profile">Update Profile</a>
             </li>
             <li>
+              <a href="/internal/leaderboard">Codeforces Leaderboard</a>
+            </li>
+            <li>
               <a href="/internal/files">Files Sharing</a>
             </li>
             {isAdmin(session.user.role) && (

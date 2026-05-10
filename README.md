@@ -38,9 +38,9 @@ The official web platform for Coding Club IITG.
    ```bash
    pnpm dev
    ```
-3. **Build for production:**
+3. **Run on server:**
    ```bash
-   pnpm build
+   pm2 start ecosystem.config.js
    ```
 
 ## Contributing

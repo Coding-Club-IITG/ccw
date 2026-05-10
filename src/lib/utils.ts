@@ -20,11 +20,16 @@ export function formatDate(date: Date | string) {
 }
 
 /**
- * Shared logger that only outputs in development environment.
+ * Shared logger that only outputs in development environment,
+ * but always outputs errors and warnings.
  */
 const createLogger = (level: "log" | "warn" | "error" | "debug") => {
   return (...args: unknown[]) => {
-    if (process.env.NODE_ENV === "development") {
+    if (
+      process.env.NODE_ENV === "development" ||
+      level === "error" ||
+      level === "warn"
+    ) {
       console[level]("[CCW]", ...args);
     }
   };
