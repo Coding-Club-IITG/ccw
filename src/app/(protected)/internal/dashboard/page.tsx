@@ -53,6 +53,9 @@ export default async function DashboardPage() {
             <li>
               <a href="/internal/files">Files Sharing</a>
             </li>
+            <li>
+              <a href="/internal/potd">Codeforces - POTD</a>
+            </li>
             {isAdmin(user.role) && (
               <li>
                 <a href="/admin">Website Administration</a>

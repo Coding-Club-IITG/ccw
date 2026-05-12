@@ -1,0 +1,278 @@
+.container {
+  max-width: 1000px;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.header {
+  margin-bottom: 0.5rem;
+  
+  h1 { 
+    margin: 0 0 0.5rem 0; 
+    font-size: 1.75rem; 
+    font-weight: 700; 
+    color: #111; 
+  }
+  
+  p { 
+    margin: 0; 
+    color: #666; 
+    font-size: 0.95rem; 
+  }
+}
+
+.tabs {
+  display: flex; 
+  gap: 0.5rem; 
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid #eaeaea; 
+  padding-bottom: 1rem;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.tab {
+  background: transparent; 
+  border: 1px solid transparent; 
+  padding: 0.5rem 1.25rem;
+  font-size: 0.95rem; 
+  font-weight: 500; 
+  color: #666; 
+  cursor: pointer;
+  border-radius: 6px; 
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+  
+  &:hover { 
+    background: #f4f4f5; 
+    color: #111; 
+  }
+  
+  &.active { 
+    background: #111; 
+    color: #fff; 
+    border-color: #111;
+  }
+}
+
+.tableContainer {
+  background: #fff; 
+  border: 1px solid #eaeaea; 
+  border-radius: 12px;
+  overflow: auto; 
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+
+.table {
+  width: 100%; 
+  border-collapse: collapse; 
+  text-align: left;
+  
+  th, td { 
+    padding: 1rem 1.5rem; 
+    border-bottom: 1px solid #eaeaea; 
+    white-space: nowrap;
+  }
+  
+  th { 
+    background: #f9fafb; 
+    font-weight: 600; 
+    color: #374151; 
+    font-size: 0.8rem; 
+    text-transform: uppercase; 
+    letter-spacing: 0.5px; 
+  }
+  
+  tr:last-child td { 
+    border-bottom: none; 
+  }
+  
+  tbody tr {
+    transition: background 0.15s ease;
+    &:hover { 
+      background: #fcfcfc; 
+    }
+  }
+}
+
+.rank { 
+  font-weight: 700; 
+  color: #111; 
+  font-size: 1.1rem;
+}
+
+.rankBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 0.9rem;
+}
+
+.top1 { background: #fef08a; color: #92400e; } /* Gold */
+.top2 { background: #f1f5f9; color: #475569; } /* Silver */
+.top3 { background: #fed7aa; color: #9a3412; } /* Bronze */
+
+.userInfo {
+  display: flex;
+  flex-direction: column;
+}
+
+.userName { 
+  font-weight: 600; 
+  color: #111; 
+  font-size: 0.95rem;
+}
+
+.userHandle { 
+  font-size: 0.8rem; 
+  color: #666; 
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; 
+}
+
+.points {
+  font-weight: 700;
+  color: #111;
+  font-size: 1.05rem;
+}
+
+.maxStreakWrapper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 700;
+  color: #111;
+  font-size: 1.05rem;
+}
+
+.maxStreakIcon {
+  font-size: 1.1rem;
+}
+
+.headerFlex {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.sortControls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sortLabel {
+  font-size: 0.875rem;
+  color: #666;
+  font-weight: 500;
+}
+
+.sortSelect {
+  padding: 0.5rem;
+  border: 1px solid #eaeaea;
+  border-radius: 6px;
+  background-color: white;
+  font-size: 0.875rem;
+  color: #333;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s;
+
+  &:hover {
+    border-color: #ccc;
+  }
+  
+  &:focus {
+    border-color: #000;
+  }
+}
+
+.sortHeader {
+  cursor: pointer;
+  transition: color 0.2s;
+  
+  &:hover {
+    color: #000;
+  }
+}
+
+.activeSortHeader {
+  cursor: pointer;
+  color: #000;
+  font-weight: 700;
+}
+
+.streak {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-weight: 600;
+  color: #ea580c;
+  background: #ffedd5;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+}
+
+.tags {
+  display: flex; 
+  gap: 0.5rem; 
+  flex-wrap: wrap;
+  
+  span { 
+    background: #f4f4f5; 
+    color: #52525b; 
+    padding: 2px 8px; 
+    border-radius: 4px; 
+    font-size: 0.75rem; 
+    border: 1px solid #e4e4e7; 
+  }
+}
+
+.rating { 
+  font-weight: 600; 
+  color: #4f46e5; 
+  font-size: 0.85rem; 
+  background: #e0e7ff; 
+  padding: 4px 8px; 
+  border-radius: 6px; 
+}
+
+.problemTitle { 
+  font-weight: 600; 
+  color: #111; 
+  font-size: 0.95rem;
+  text-decoration: none; 
+  
+  &:hover { 
+    color: #4f46e5; 
+  } 
+}
+
+.problemId { 
+  font-size: 0.75rem; 
+  color: #666; 
+  display: block; 
+  margin-bottom: 0.25rem; 
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.subText {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.boldText {
+  font-weight: 500;
+}

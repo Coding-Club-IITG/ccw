@@ -37,6 +37,13 @@ export const auth = betterAuth({
       phoneNumber: {
         type: "string",
       },
+      cfVerified: {
+        type: "boolean",
+        defaultValue: false,
+      },
+      cfVerificationToken: {
+        type: "string",
+      },
     },
   },
   socialProviders: {
