@@ -1,6 +1,6 @@
 import Navbar from "@/components/layout/Navbar/Navbar";
 
-export default function ProtectedLayout({
+export default async function ProtectedLayout({
   children,
 }: {
   children: React.ReactNode;

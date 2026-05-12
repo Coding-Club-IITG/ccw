@@ -1,9 +1,11 @@
+"use client";
+
 import Link from "next/link";
-import { auth, signIn, signOut } from "@/lib/auth";
+import { useSession, signIn, signOut, authClient } from "@/lib/auth-client";
 import styles from "./Navbar.module.scss";
 
-export default async function Navbar() {
-  const session = await auth();
+export default function Navbar() {
+  const { data: session, isPending } = useSession();
 
   return (
     <nav className={styles.navbar}>
@@ -21,40 +23,44 @@ export default async function Navbar() {
             </Link>
             <Link href="/internal/profile">Profile</Link>
             <Link href="/internal/files">Files</Link>
-            <form
-              action={async () => {
-                "use server";
+            <button
+              onClick={async () => {
                 await signOut();
+                window.location.href = "/";
               }}
+              className={styles.authButton}
             >
-              <button type="submit" className={styles.authButton}>
-                Logout
-              </button>
-            </form>
+              Logout
+            </button>
           </>
         ) : (
           <>
             <Link href="/">Home</Link>
             <Link href="/projects">Projects</Link>
             <Link href="/team">Team</Link>
-            <form
-              action={async () => {
-                "use server";
-                if (process.env.DEV_BYPASS === "1") {
-                  await signIn("dev-login", {
-                    redirectTo: "/internal/dashboard",
+            <button
+              onClick={async () => {
+                if (process.env.NEXT_PUBLIC_DEV_BYPASS === "1") {
+                  const res = await authClient.$fetch("/sign-in/dev", {
+                    method: "POST",
+                    body: {
+                      email: "codingclub@iitg.ac.in",
+                    },
                   });
+                  if (res.data) {
+                    window.location.href = "/";
+                  }
                 } else {
-                  await signIn("microsoft-entra-id", {
-                    redirectTo: "/internal/dashboard",
+                  await signIn.social({
+                    provider: "microsoft",
+                    callbackURL: "/",
                   });
                 }
               }}
+              className={styles.authButton}
             >
-              <button type="submit" className={styles.authButton}>
-                Login
-              </button>
-            </form>
+              Login
+            </button>
           </>
         )}
       </div>

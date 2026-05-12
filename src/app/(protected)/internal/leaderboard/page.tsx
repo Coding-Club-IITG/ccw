@@ -1,16 +1,8 @@
-import { auth } from "@/lib/auth";
-import { redirect } from "next/navigation";
 import CFUser from "@/models/CFUser";
 import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
 
 export default async function LeaderboardPage() {
-  const session = await auth();
-
-  if (!session) {
-    redirect("/login");
-  }
-
   await dbConnect();
 
   // Fetch all CF users and join with User data for names

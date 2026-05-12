@@ -1,14 +1,17 @@
 "use server";
 
 import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
 import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
 import { revalidatePath } from "next/cache";
 import { logger, isAdmin } from "@/lib/utils";
 
 async function checkAdmin() {
-  const session = await auth();
-  if (!session || !isAdmin(session.user.role)) {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+  if (!session || !isAdmin((session.user as any).role)) {
     logger.warn(
       `Unauthorized admin access attempt by: ${session?.user?.email || "Unknown"}`,
     );
@@ -105,7 +108,9 @@ export async function updateProfile(data: {
   bio?: string;
   phoneNumber?: string;
 }) {
-  const session = await auth();
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
   if (!session) throw new Error("Unauthorized");
 
   await dbConnect();

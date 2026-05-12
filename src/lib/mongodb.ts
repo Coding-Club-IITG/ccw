@@ -44,4 +44,9 @@ async function dbConnect() {
   return cached.conn;
 }
 
+export const getClient = async () => {
+  await dbConnect();
+  return mongoose.connection.getClient();
+};
+
 export default dbConnect;

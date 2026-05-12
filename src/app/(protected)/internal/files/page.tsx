@@ -11,7 +11,7 @@ export default function FilesPage() {
           marginTop: "2rem",
           padding: "4rem",
           textAlign: "center",
-          border: "2px dashed #eaeaea",
+          border: "2px dashed #7a6565",
           borderRadius: "12px",
         }}
       >

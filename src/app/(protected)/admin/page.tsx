@@ -1,15 +1,6 @@
-import { auth } from "@/lib/auth";
-import { redirect } from "next/navigation";
 import UserManagement from "@/components/admin/UserManagement";
-import { isAdmin } from "@/lib/utils";
 
 export default async function AdminPage() {
-  const session = await auth();
-
-  if (!session || !isAdmin(session.user.role)) {
-    redirect("/internal/dashboard");
-  }
-
   return (
     <div style={{ padding: "1rem 0" }}>
       <header style={{ marginBottom: "2rem" }}>

@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { useSession } from "next-auth/react";
+import { useState, useEffect } from "react";
+import { useSession } from "@/lib/auth-client";
 import { updateProfile } from "@/lib/actions/user";
 import styles from "./ProfileForm.module.scss";
 
 export default function ProfileForm() {
-  const { data: session, update } = useSession();
+  const { data: session, isPending } = useSession();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{
     type: "success" | "error";
@@ -14,12 +14,24 @@ export default function ProfileForm() {
   } | null>(null);
 
   const [formData, setFormData] = useState({
-    name: session?.user?.name || "",
-    codeforcesId: session?.user?.codeforcesId || "",
-    githubId: session?.user?.githubId || "",
-    bio: session?.user?.bio || "",
-    phoneNumber: session?.user?.phoneNumber || "",
+    name: "",
+    codeforcesId: "",
+    githubId: "",
+    bio: "",
+    phoneNumber: "",
   });
+
+  useEffect(() => {
+    if (session?.user) {
+      setFormData({
+        name: session.user.name || "",
+        codeforcesId: (session.user as any).codeforcesId || "",
+        githubId: (session.user as any).githubId || "",
+        bio: (session.user as any).bio || "",
+        phoneNumber: (session.user as any).phoneNumber || "",
+      });
+    }
+  }, [session]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -28,17 +40,11 @@ export default function ProfileForm() {
 
     try {
       await updateProfile(formData);
-
-      // Update the local session with new data
-      await update({
-        name: formData.name,
-        codeforcesId: formData.codeforcesId,
-        githubId: formData.githubId,
-        bio: formData.bio,
-        phoneNumber: formData.phoneNumber,
+      // Could also use authClient.updateUser
+      setMessage({
+        type: "success",
+        text: "Profile updated successfully! Refresh to see changes.",
       });
-
-      setMessage({ type: "success", text: "Profile updated successfully!" });
     } catch (error: any) {
       setMessage({
         type: "error",
@@ -48,6 +54,8 @@ export default function ProfileForm() {
       setLoading(false);
     }
   }
+
+  if (isPending) return <div>Loading...</div>;
 
   return (
     <div className={styles.container}>

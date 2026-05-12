@@ -1,18 +1,20 @@
 import { auth } from "@/lib/auth";
-import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { isAdmin } from "@/lib/utils";
 
 export default async function DashboardPage() {
-  const session = await auth();
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
 
-  if (!session) {
-    redirect("/login");
-  }
+  // session is guaranteed by proxy
+  const user = session!.user as any;
+  const moduleRoles = user.moduleRoles || [];
 
   return (
     <div style={{ padding: "2rem" }}>
       <h1>Member Dashboard</h1>
-      <p>Welcome back, {session.user.name}!</p>
+      <p>Welcome back, {user.name}!</p>
 
       <div style={{ marginTop: "2rem", display: "grid", gap: "1rem" }}>
         <div
@@ -24,8 +26,8 @@ export default async function DashboardPage() {
         >
           <h3>Your Roles</h3>
           <ul>
-            <li>Global Role: {session.user.role}</li>
-            {session.user.moduleRoles.map((mr, i) => (
+            <li>Global Role: {user.role}</li>
+            {moduleRoles.map((mr: any, i: number) => (
               <li key={i}>
                 {mr.module}: {mr.role}
               </li>
@@ -51,7 +53,7 @@ export default async function DashboardPage() {
             <li>
               <a href="/internal/files">Files Sharing</a>
             </li>
-            {isAdmin(session.user.role) && (
+            {isAdmin(user.role) && (
               <li>
                 <a href="/admin">Website Administration</a>
               </li>

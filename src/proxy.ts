@@ -1,39 +1,27 @@
+import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { NextRequest } from "next/server";
-import { isAdmin } from "@/lib/utils";
 
-export default auth((req: NextRequest & { auth: any }) => {
-  const isLoggedIn = !!req.auth;
-  const { pathname } = req.nextUrl;
+export async function proxy(request: NextRequest) {
+  const session = await auth.api.getSession({
+    headers: request.headers,
+  });
+  const { pathname } = request.nextUrl;
 
-  // Define route categories
   const isProtectedRoute =
     pathname.startsWith("/internal") || pathname.startsWith("/admin");
 
-  // Redirect authenticated users away from ANY public route to the dashboard
-  if (isLoggedIn && !isProtectedRoute) {
-    return Response.redirect(
-      new URL("/internal/dashboard", req.nextUrl.origin),
-    );
+  // If no session, send to home
+  if (isProtectedRoute && !session) {
+    return NextResponse.redirect(new URL("/", request.url));
   }
 
-  // Protect internal and admin routes for non-authenticated users
-  if (isProtectedRoute && !isLoggedIn) {
-    const loginUrl = new URL("/", req.nextUrl.origin); // Redirect to home for login
-    return Response.redirect(loginUrl);
+  // If logged in and trying to access home, send to dashboard
+  if (session && pathname === "/") {
+    return NextResponse.redirect(new URL("/internal/dashboard", request.url));
   }
 
-  // Admin specific protection
-  if (
-    isLoggedIn &&
-    pathname.startsWith("/admin") &&
-    !isAdmin(req.auth?.user.role)
-  ) {
-    return Response.redirect(
-      new URL("/internal/dashboard", req.nextUrl.origin),
-    );
-  }
-});
+  return NextResponse.next();
+}
 
 export const config = {
   matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
