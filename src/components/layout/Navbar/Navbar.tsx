@@ -40,22 +40,10 @@ export default function Navbar() {
             <Link href="/team">Team</Link>
             <button
               onClick={async () => {
-                if (process.env.NEXT_PUBLIC_DEV_BYPASS === "1") {
-                  const res = await authClient.$fetch("/sign-in/dev", {
-                    method: "POST",
-                    body: {
-                      email: "codingclub@iitg.ac.in",
-                    },
-                  });
-                  if (res.data) {
-                    window.location.href = "/";
-                  }
-                } else {
-                  await signIn.social({
-                    provider: "microsoft",
-                    callbackURL: "/",
-                  });
-                }
+                await signIn.social({
+                  provider: "microsoft",
+                  callbackURL: "/",
+                });
               }}
               className={styles.authButton}
             >

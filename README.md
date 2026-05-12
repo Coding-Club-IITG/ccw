@@ -29,16 +29,18 @@ The official web platform for Coding Club IITG.
 
 ## Getting Started
 
-1. **Prepare:**
+1. **Install dependencies:**
    ```bash
    pnpm install
-   pnpm seed
    ```
-2. **Run in development mode:**
+2. **Prepare account:**
+   Add your user details to [`seed.ts`](./scripts/seed.ts) and run `pnpm seed`
+
+3. **Run in development mode:**
    ```bash
    pnpm dev
    ```
-3. **Run on server:**
+4. **Run on server:**
    ```bash
    pm2 start ecosystem.config.js
    ```

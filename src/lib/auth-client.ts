@@ -8,17 +8,6 @@ export const authClient = createAuthClient({
     refetchInterval: 0,
     refetchOnWindowFocus: false,
   },
-  plugins: [
-    {
-      id: "dev-login",
-      endpoints: {
-        signInDev: {
-          path: "/sign-in/dev",
-          method: "POST",
-        },
-      },
-    } as any,
-  ],
 });
 
 export const { useSession, signIn, signOut } = authClient;
