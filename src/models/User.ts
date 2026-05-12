@@ -33,6 +33,9 @@ const UserSchema = new mongoose.Schema(
     githubId: { type: String, default: "" },
     bio: { type: String, default: "" },
     phoneNumber: { type: String, default: "" },
+    msAccessToken: { type: String, default: "" },
+    msRefreshToken: { type: String, default: "" },
+    msTokenExpiresAt: { type: Date },
   },
   { timestamps: true },
 );

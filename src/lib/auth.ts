@@ -7,13 +7,19 @@ import { logger } from "@/lib/utils";
 
 const providers: any[] = [
   MicrosoftEntraID({
-    clientId: process.env.AUTH_MICROSOFT_ENTRA_ID_ID!,
-    clientSecret: process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET!,
-    issuer: process.env.AUTH_MICROSOFT_ENTRA_ID_ISSUER,
+    clientId: process.env.AZURE_CLIENT_ID,
+    clientSecret: process.env.AZURE_CLIENT_SECRET,
+    issuer: `https://login.microsoftonline.com/${process.env.AZURE_TENANT_ID}/v2.0`,
+    authorization: {
+      params: {
+        scope: "openid profile email User.Read offline_access",
+        prompt: "consent",
+      },
+    },
   }),
 ];
 
-if (process.env.NODE_ENV === "development") {
+if (process.env.DEV_BYPASS === "1") {
   providers.push(
     Credentials({
       id: "dev-login",
@@ -60,6 +66,7 @@ if (process.env.NODE_ENV === "development") {
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers,
   secret: process.env.AUTH_SECRET,
+  trustHost: true,
   callbacks: {
     async signIn({ user, account }) {
       logger.info(
@@ -83,7 +90,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return false;
       }
     },
-    async jwt({ token, user, trigger, session }) {
+    async jwt({ token, user, account, trigger, session }) {
       // Initial sign in
       if (user) {
         await dbConnect();
@@ -98,6 +105,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           token.githubId = dbUser.githubId;
           token.bio = dbUser.bio;
           token.phoneNumber = dbUser.phoneNumber;
+
+          // Persist MS Graph tokens if using Entra ID
+          if (account?.provider === "microsoft-entra-id") {
+            logger.info(`[Auth] Persisting MS tokens for ${user.email}`);
+            dbUser.msAccessToken = account.access_token;
+            dbUser.msRefreshToken = account.refresh_token;
+            if (account.expires_at) {
+              dbUser.msTokenExpiresAt = new Date(account.expires_at * 1000);
+            }
+            await dbUser.save();
+          }
         }
       }
 

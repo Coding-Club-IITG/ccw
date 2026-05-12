@@ -18,6 +18,9 @@ declare module "next-auth" {
       githubId?: string;
       bio?: string;
       phoneNumber?: string;
+      msAccessToken?: string;
+      msRefreshToken?: string;
+      msTokenExpiresAt?: Date;
     } & DefaultSession["user"];
   }
 
@@ -36,6 +39,9 @@ declare module "next-auth" {
     githubId?: string;
     bio?: string;
     phoneNumber?: string;
+    msAccessToken?: string;
+    msRefreshToken?: string;
+    msTokenExpiresAt?: Date;
   }
 }
 
@@ -56,5 +62,8 @@ declare module "next-auth/jwt" {
     githubId?: string;
     bio?: string;
     phoneNumber?: string;
+    msAccessToken?: string;
+    msRefreshToken?: string;
+    msTokenExpiresAt?: Date;
   }
 }

@@ -40,7 +40,7 @@ export default async function Navbar() {
             <form
               action={async () => {
                 "use server";
-                if (process.env.NODE_ENV === "development") {
+                if (process.env.DEV_BYPASS === "1") {
                   await signIn("dev-login", {
                     redirectTo: "/internal/dashboard",
                   });
