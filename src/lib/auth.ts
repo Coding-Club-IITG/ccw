@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { mongodbAdapter } from "@better-auth/mongo-adapter";
 import { getClient } from "@/lib/mongodb";
+import { APIError } from "better-auth/api";
 
 const client = await getClient();
 const db = client.db();
@@ -10,6 +11,17 @@ if (!db) {
 }
 
 export const auth = betterAuth({
+  databaseHooks: {
+    user: {
+      create: {
+        before: async () => {
+          throw new APIError("UNAUTHORIZED", {
+            message: "Sign up is disabled. Please contact an administrator.",
+          });
+        },
+      },
+    },
+  },
   database: mongodbAdapter(db, {
     client,
   }),
@@ -46,6 +58,7 @@ export const auth = betterAuth({
       tenantId: process.env.AZURE_TENANT_ID as string,
       scope: ["User.Read", "offline_access"],
       prompt: "select_account",
+      disableImplicitSignUp: true,
     },
   },
   account: {
