@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useSession, signIn, signOut, authClient } from "@/lib/auth-client";
+import { useSession, signIn, signOut } from "@/lib/auth-client";
+import { useState } from "react";
 import styles from "./Navbar.module.scss";
 
 export default function Navbar() {
   const { data: session, isPending } = useSession();
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   return (
     <nav className={styles.navbar}>
@@ -40,15 +42,18 @@ export default function Navbar() {
             <Link href="/projects">Projects</Link>
             <Link href="/team">Team</Link>
             <button
+              disabled={isLoggingIn || isPending}
               onClick={async () => {
+                setIsLoggingIn(true);
                 await signIn.social({
                   provider: "microsoft",
-                  callbackURL: "/",
+                  callbackURL: "/internal/dashboard",
+                  errorCallbackURL: "/?error=unauthorized",
                 });
               }}
               className={styles.authButton}
             >
-              Login
+              {isLoggingIn ? "Redirecting..." : "Login"}
             </button>
           </>
         )}

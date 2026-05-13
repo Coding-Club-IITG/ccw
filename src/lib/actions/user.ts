@@ -3,10 +3,12 @@
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import dbConnect from "@/lib/mongodb";
+import { getClient } from "@/lib/mongodb";
 import User from "@/models/User";
 import { revalidatePath } from "next/cache";
 import { logger } from "@/lib/utils";
 import { isAdmin } from "@/lib/roles";
+import { ObjectId } from "mongodb";
 
 async function checkAdmin() {
   const session = await auth.api.getSession({
@@ -91,11 +93,44 @@ export async function deleteUser(userId: string) {
   await dbConnect();
 
   const userToDelete = await User.findById(userId);
-  if (userToDelete) {
-    logger.warn(
-      `Admin ${adminSession.user.email} deleted user: ${userToDelete.email}`,
+  if (!userToDelete) {
+    revalidatePath("/admin");
+    return { success: true };
+  }
+
+  logger.warn(
+    `Admin ${adminSession.user.email} deleted user: ${userToDelete.email}`,
+  );
+
+  // 1. Delete the user document
+  await User.findByIdAndDelete(userId);
+
+  // 2. Purge all sessions and linked accounts
+  try {
+    const mongoClient = await getClient();
+    const db = mongoClient.db();
+
+    let userIdQuery: ObjectId | string = userId;
+    try {
+      userIdQuery = new ObjectId(userId);
+    } catch {
+      userIdQuery = userId;
+    }
+
+    const [sessionsResult, accountsResult] = await Promise.all([
+      db.collection("sessions").deleteMany({ userId: userIdQuery }),
+      db.collection("accounts").deleteMany({ userId: userIdQuery }),
+    ]);
+
+    logger.info(
+      `[Auth] Cleaned up ${sessionsResult.deletedCount} session(s) and ` +
+        `${accountsResult.deletedCount} account(s) for deleted user: ${userToDelete.email}`,
     );
-    await User.findByIdAndDelete(userId);
+  } catch (err) {
+    logger.error(
+      `[Auth] Failed to clean up sessions/accounts for deleted user ${userToDelete.email}:`,
+      err,
+    );
   }
 
   revalidatePath("/admin");

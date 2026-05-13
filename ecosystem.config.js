@@ -8,6 +8,9 @@ module.exports = {
       // exec_mode: "cluster",
       instances: 1,
       exec_mode: "fork",
+      env: {
+        PORT: 3077,
+      },
     },
     {
       name: "ccw-worker",
