@@ -49,7 +49,6 @@ export default function Navbar() {
                   callbackURL: "/internal/dashboard",
                   errorCallbackURL: "/?error=unauthorized",
                 });
-                setIsLoggingIn(false);
               }}
               className={styles.authButton}
             >
