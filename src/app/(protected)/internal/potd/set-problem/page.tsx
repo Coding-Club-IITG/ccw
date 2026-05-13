@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { isAdmin } from "@/lib/utils";
+import { isAdmin } from "@/lib/roles";
 import { redirect } from "next/navigation";
 import SetProblemClient from "./SetProblemClient";
 

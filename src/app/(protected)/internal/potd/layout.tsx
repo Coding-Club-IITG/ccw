@@ -1,7 +1,7 @@
 "use client";
 
 import { useSession } from "@/lib/auth-client";
-import { isAdmin } from "@/lib/utils";
+import { isAdmin } from "@/lib/roles";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React from "react";

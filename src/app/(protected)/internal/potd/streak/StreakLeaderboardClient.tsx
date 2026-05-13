@@ -2,25 +2,20 @@
 
 import { useState } from "react";
 import styles from "../Lists.module.scss";
+import { type StreakEntry } from "@/lib/actions/potd";
 
 type StreakTab = "current" | "max";
 
-const dummyStreakData = [
-  { id: 1, name: "Tourist", handle: "tourist", currentStreak: 45, maxStreak: 120, totalSolved: 360 },
-  { id: 2, name: "Charlie Brown", handle: "charlie.b", currentStreak: 21, maxStreak: 35, totalSolved: 65 },
-  { id: 3, name: "Alice Smith", handle: "alice_codes", currentStreak: 12, maxStreak: 15, totalSolved: 85 },
-  { id: 4, name: "Bob Jones", handle: "bob_j", currentStreak: 5, maxStreak: 50, totalSolved: 72 },
-  { id: 5, name: "Diana Prince", handle: "diana_p", currentStreak: 2, maxStreak: 10, totalSolved: 40 },
-  { id: 6, name: "Evan Wright", handle: "evan_w", currentStreak: 0, maxStreak: 25, totalSolved: 31 },
-];
+type Props = {
+  initialData: StreakEntry[];
+};
 
-export default function StreakLeaderboardClient() {
+export default function StreakLeaderboardClient({ initialData }: Props) {
   const [sortParam, setSortParam] = useState<StreakTab>("current");
 
-  // Sort based on selected state
-  const sortedData = [...dummyStreakData].sort((a, b) => {
-    const valA = sortParam === "current" ? a.currentStreak : a.maxStreak;
-    const valB = sortParam === "current" ? b.currentStreak : b.maxStreak;
+  const sortedData = [...initialData].sort((a, b) => {
+    const valA = sortParam === "current" ? a.currentStreak : a.longestStreak;
+    const valB = sortParam === "current" ? b.currentStreak : b.longestStreak;
     return valB - valA;
   });
 
@@ -33,11 +28,13 @@ export default function StreakLeaderboardClient() {
             <p>Rankings based on consecutive days of solving the POTD.</p>
           </div>
           <div className={styles.sortControls}>
-            <label htmlFor="streakSort" className={styles.sortLabel}>Sort By:</label>
-            <select 
-              id="streakSort" 
+            <label htmlFor="streakSort" className={styles.sortLabel}>
+              Sort By:
+            </label>
+            <select
+              id="streakSort"
               className={styles.sortSelect}
-              value={sortParam} 
+              value={sortParam}
               onChange={(e) => setSortParam(e.target.value as StreakTab)}
             >
               <option value="current">Current Streak</option>
@@ -47,67 +44,88 @@ export default function StreakLeaderboardClient() {
         </div>
       </div>
 
-      <div className={styles.tableContainer}>
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th>Rank</th>
-              <th>Member</th>
-              <th 
-                className={sortParam === "current" ? styles.activeSortHeader : styles.sortHeader}
-                onClick={() => setSortParam("current")}
-              >
-                Current Streak {sortParam === "current" && "▼"}
-              </th>
-              <th 
-                className={sortParam === "max" ? styles.activeSortHeader : styles.sortHeader}
-                onClick={() => setSortParam("max")}
-              >
-                Max Streak {sortParam === "max" && "▼"}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {sortedData.map((user, index) => {
-              const rank = index + 1;
-              let rankClass = "";
-              if (rank === 1) rankClass = styles.top1;
-              if (rank === 2) rankClass = styles.top2;
-              if (rank === 3) rankClass = styles.top3;
+      {sortedData.length === 0 ? (
+        <p style={{ color: "#666", padding: "2rem 0" }}>
+          No streak data yet — start solving!
+        </p>
+      ) : (
+        <div className={styles.tableContainer}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>Member</th>
+                <th
+                  className={
+                    sortParam === "current"
+                      ? styles.activeSortHeader
+                      : styles.sortHeader
+                  }
+                  onClick={() => setSortParam("current")}
+                >
+                  Current Streak {sortParam === "current" && "▼"}
+                </th>
+                <th
+                  className={
+                    sortParam === "max"
+                      ? styles.activeSortHeader
+                      : styles.sortHeader
+                  }
+                  onClick={() => setSortParam("max")}
+                >
+                  Max Streak {sortParam === "max" && "▼"}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedData.map((user, index) => {
+                const rank = index + 1;
+                let rankClass = "";
+                if (rank === 1) rankClass = styles.top1;
+                if (rank === 2) rankClass = styles.top2;
+                if (rank === 3) rankClass = styles.top3;
 
-              return (
-                <tr key={user.id}>
-                  <td>
-                    <span className={`${styles.rank} ${rankClass ? styles.rankBadge : ""} ${rankClass}`}>
-                      {rank}
-                    </span>
-                  </td>
-                  <td>
-                    <div className={styles.userInfo}>
-                      <span className={styles.userName}>{user.name}</span>
-                      <span className={styles.userHandle}>@{user.handle}</span>
-                    </div>
-                  </td>
-                  <td>
-                    {user.currentStreak > 0 ? (
-                      <span className={styles.streak}>
-                        🔥 {user.currentStreak}
+                return (
+                  <tr key={user.userId}>
+                    <td>
+                      <span
+                        className={`${styles.rank} ${rankClass ? styles.rankBadge : ""} ${rankClass}`}
+                      >
+                        {rank}
                       </span>
-                    ) : (
-                      <span className={styles.subText}>-</span>
-                    )}
-                  </td>
-                  <td>
-                    <span className={styles.maxStreakWrapper}>
-                      <span className={styles.maxStreakIcon}>⚡</span> {user.maxStreak}
-                    </span>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                    </td>
+                    <td>
+                      <div className={styles.userInfo}>
+                        <span className={styles.userName}>{user.name}</span>
+                        {user.codeforcesId && (
+                          <span className={styles.userHandle}>
+                            @{user.codeforcesId}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td>
+                      {user.currentStreak > 0 ? (
+                        <span className={styles.streak}>
+                          🔥 {user.currentStreak}
+                        </span>
+                      ) : (
+                        <span className={styles.subText}>-</span>
+                      )}
+                    </td>
+                    <td>
+                      <span className={styles.maxStreakWrapper}>
+                        <span className={styles.maxStreakIcon}>⚡</span>{" "}
+                        {user.longestStreak}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
