@@ -3,11 +3,13 @@
 import { useState, useEffect } from "react";
 import { useSession } from "@/lib/auth-client";
 import { updateProfile } from "@/lib/actions/user";
+import { requestHandleVerification } from "@/lib/actions/cf";
 import styles from "./ProfileForm.module.scss";
 
 export default function ProfileForm() {
   const { data: session, isPending } = useSession();
   const [loading, setLoading] = useState(false);
+  const [verifying, setVerifying] = useState(false);
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -21,6 +23,9 @@ export default function ProfileForm() {
     phoneNumber: "",
   });
 
+  const [cfVerificationToken, setCfVerificationToken] = useState("");
+  const [cfVerified, setCfVerified] = useState(false);
+
   useEffect(() => {
     if (session?.user) {
       setFormData({
@@ -30,8 +35,42 @@ export default function ProfileForm() {
         bio: (session.user as any).bio || "",
         phoneNumber: (session.user as any).phoneNumber || "",
       });
+      setCfVerified((session.user as any).cfVerified || false);
+      setCfVerificationToken((session.user as any).cfVerificationToken || "");
     }
   }, [session]);
+
+  async function handleVerifySubmit() {
+    setVerifying(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/cf/verify-handle", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      setCfVerified(true);
+      setCfVerificationToken("");
+      setMessage({ type: "success", text: "Codeforces handle verified!" });
+    } catch (error: any) {
+      setMessage({ type: "error", text: error.message || "Verification failed" });
+    } finally {
+      setVerifying(false);
+    }
+  }
+
+  async function handleRequestToken() {
+    setVerifying(true);
+    setMessage(null);
+    try {
+      const token = await requestHandleVerification(formData.codeforcesId);
+      setCfVerificationToken(token);
+      setMessage({ type: "success", text: "Token generated. Please update your CF profile." });
+    } catch (error: any) {
+      setMessage({ type: "error", text: error.message || "Failed to generate token" });
+    } finally {
+      setVerifying(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -91,15 +130,49 @@ export default function ProfileForm() {
 
         <div className={styles.field}>
           <label htmlFor="codeforces">Codeforces ID</label>
-          <input
-            type="text"
-            id="codeforces"
-            value={formData.codeforcesId}
-            onChange={(e) =>
-              setFormData({ ...formData, codeforcesId: e.target.value })
-            }
-            placeholder="e.g. tourist"
-          />
+          <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+            <input
+              type="text"
+              id="codeforces"
+              value={formData.codeforcesId}
+              onChange={(e) =>
+                setFormData({ ...formData, codeforcesId: e.target.value })
+              }
+              placeholder="e.g. tourist"
+            />
+            {cfVerified && <span style={{ color: "green", fontWeight: "bold" }}>Verified ✓</span>}
+          </div>
+          
+          {formData.codeforcesId && !cfVerified && (
+            <div style={{ marginTop: "12px", padding: "1rem", background: "#fef3c7", border: "1px solid #ffeeba", borderRadius: "8px", color: "#856404" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: cfVerificationToken ? "12px" : "0" }}>
+                <span style={{ fontSize: "0.95rem" }}>
+                  <strong>Unverified Handle.</strong> 
+                  {!cfVerificationToken && " Generate a secure token to begin."}
+                </span>
+                {!cfVerificationToken && (
+                  <button type="button" onClick={handleRequestToken} disabled={verifying} style={{ padding: "6px 12px", borderRadius: "4px", border: "1px solid #856404", background: "transparent", color: "#856404", cursor: "pointer", fontWeight: "bold" }}>
+                    {verifying ? "Wait..." : "Get Token"}
+                  </button>
+                )}
+              </div>
+
+              {cfVerificationToken && (
+                <div style={{ background: "rgba(255,255,255,0.6)", padding: "12px", borderRadius: "6px", fontSize: "0.9rem", lineHeight: "1.6" }}>
+                  <ol style={{ margin: "0 0 12px 0", paddingLeft: "1.2rem" }}>
+                    <li>
+                      Update your Codeforces <strong>First Name</strong> to: 
+                      <code style={{ background: "#fff", border: "1px solid #e2e8f0", padding: "3px 8px", borderRadius: "4px", marginLeft: "8px", fontFamily: "monospace", fontSize: "1rem", fontWeight: "bold", color: "#b45309" }}>{cfVerificationToken}</code>
+                    </li>
+                    <li style={{ marginTop: "6px" }}>Wait a few seconds for Codeforces to update, then click verify.</li>
+                  </ol>
+                  <button type="button" onClick={handleVerifySubmit} disabled={verifying} style={{ padding: "8px 16px", borderRadius: "4px", border: "none", background: "#856404", color: "#fff", cursor: "pointer", fontWeight: "bold", width: "100%", transition: "opacity 0.2s" }}>
+                    {verifying ? "Checking with Codeforces..." : "Verify Handle"}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className={styles.field}>
