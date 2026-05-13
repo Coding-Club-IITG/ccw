@@ -10,16 +10,7 @@ import {
 } from "@/lib/actions/user";
 import styles from "./UserManagement.module.scss";
 import { Trash2, Plus, X, Save } from "lucide-react";
-
-const ROLES = ["Secretary", "OC", "Core Team", "Member"];
-const MODULES = [
-  "Software Development",
-  "Competitive Programming",
-  "Machine Learning",
-  "Cybersecurity",
-  "Design",
-];
-const MODULE_ROLES = ["Head", "Senior Coordinator", "Coordinator", "Member"];
+import { GLOBAL_ROLES as ROLES, MODULES, MODULE_ROLES } from "@/lib/constants";
 
 export default function UserManagement() {
   const [users, setUsers] = useState<any[]>([]);

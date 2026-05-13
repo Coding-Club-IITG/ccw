@@ -5,7 +5,8 @@ import { headers } from "next/headers";
 import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
 import { revalidatePath } from "next/cache";
-import { logger, isAdmin } from "@/lib/utils";
+import { logger } from "@/lib/utils";
+import { isAdmin } from "@/lib/roles";
 
 async function checkAdmin() {
   const session = await auth.api.getSession({

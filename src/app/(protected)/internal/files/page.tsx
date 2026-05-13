@@ -1,25 +1,35 @@
-export default function FilesPage() {
-  return (
-    <div style={{ padding: "2rem" }}>
-      <h1>Internal Files Sharing</h1>
-      <p style={{ color: "#666" }}>
-        Shared resources, documentation, and module-specific files.
-      </p>
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
+import FilesClient from "@/components/files/FilesClient";
+import { canUploadFiles } from "@/lib/fileAccess";
+import {
+  parseModuleRoles,
+  getHeadModules,
+  isGlobalAdmin,
+  isAdmin,
+} from "@/lib/roles";
+import type { CurrentUser } from "@/components/files/FilesClient";
 
-      <div
-        style={{
-          marginTop: "2rem",
-          padding: "4rem",
-          textAlign: "center",
-          border: "2px dashed #7a6565",
-          borderRadius: "12px",
-        }}
-      >
-        <p>
-          File system integration pending. Placeholders will be replaced with
-          MongoDB/S3 storage logic.
-        </p>
-      </div>
-    </div>
-  );
+export default async function FilesPage() {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  // Session is guaranteed by the proxy middleware
+  const user = session!.user as any;
+  const moduleRoles = parseModuleRoles(user.moduleRoles);
+
+  const currentUser: CurrentUser = {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    moduleRoles,
+    canUpload: canUploadFiles(user.role, moduleRoles),
+    isGlobalAdmin: isGlobalAdmin(user.role),
+    isAdmin: isAdmin(user.role),
+    headModules: getHeadModules(moduleRoles),
+  };
+
+  return <FilesClient currentUser={currentUser} />;
 }

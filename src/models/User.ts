@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { GLOBAL_ROLES, MODULES, MODULE_ROLES } from "@/lib/constants";
 
 const UserSchema = new mongoose.Schema(
   {
@@ -7,24 +8,18 @@ const UserSchema = new mongoose.Schema(
     image: String,
     role: {
       type: String,
-      enum: ["Secretary", "OC", "Core Team", "Member"],
+      enum: GLOBAL_ROLES,
       default: "Member",
     },
     moduleRoles: [
       {
         module: {
           type: String,
-          enum: [
-            "Software Development",
-            "Competitive Programming",
-            "Machine Learning",
-            "Cybersecurity",
-            "Design",
-          ],
+          enum: MODULES,
         },
         role: {
           type: String,
-          enum: ["Head", "Senior Coordinator", "Coordinator", "Member"],
+          enum: MODULE_ROLES,
         },
       },
     ],

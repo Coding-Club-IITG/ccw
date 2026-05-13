@@ -1,17 +1,17 @@
 import mongoose, { Schema, Document } from "mongoose";
+import {
+  ProjectModuleName,
+  PROJECT_MODULES,
+  ProjectStatus,
+  PROJECT_STATUSES,
+} from "@/lib/constants";
 
 export interface IProject extends Document {
   title: string;
   description: string;
   date: Date;
-  module:
-    | "Software Development"
-    | "Competitive Programming"
-    | "Machine Learning"
-    | "Cybersecurity"
-    | "Design"
-    | "General";
-  status: "Upcoming" | "Completed";
+  module: ProjectModuleName;
+  status: ProjectStatus;
   link?: string;
   tags: string[];
 }
@@ -23,19 +23,12 @@ const ProjectSchema: Schema = new Schema(
     date: { type: Date, required: true },
     module: {
       type: String,
-      enum: [
-        "Software Development",
-        "Competitive Programming",
-        "Machine Learning",
-        "Cybersecurity",
-        "Design",
-        "General",
-      ],
+      enum: PROJECT_MODULES,
       required: true,
     },
     status: {
       type: String,
-      enum: ["Upcoming", "Completed"],
+      enum: PROJECT_STATUSES,
       required: true,
     },
     link: { type: String },

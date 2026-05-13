@@ -1,0 +1,196 @@
+/**
+ * GET    /api/files/[id]  — serve / stream a file to the client
+ * PATCH  /api/files/[id]  — update file metadata / permissions
+ * DELETE /api/files/[id]  — delete a file (disk + metadata)
+ */
+
+import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import dbConnect from "@/lib/mongodb";
+import FileEntry from "@/models/FileEntry";
+import mongoose from "mongoose";
+import { canAccessFile, canManageFile } from "@/lib/fileAccess";
+import { parseModuleRoles } from "@/lib/roles";
+import { createReadStream, existsSync } from "fs";
+import { unlink } from "fs/promises";
+import { Readable } from "stream";
+import path from "path";
+import { logger } from "@/lib/utils";
+
+export const runtime = "nodejs";
+
+const UPLOAD_DIR =
+  process.env.FILE_UPLOAD_DIR ?? path.join(process.cwd(), "uploads");
+
+// Shared helpers
+
+type RouteContext = { params: Promise<{ id: string }> };
+
+async function resolveSession(request: NextRequest) {
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session) return null;
+  const user = session.user as any;
+  return {
+    user,
+    moduleRoles: parseModuleRoles(user.moduleRoles),
+  };
+}
+
+// GET /api/files/[id]
+
+export async function GET(request: NextRequest, context: RouteContext) {
+  const { id } = await context.params;
+
+  const auth_ = await resolveSession(request);
+  if (!auth_) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return NextResponse.json({ error: "Invalid file ID." }, { status: 400 });
+  }
+
+  await dbConnect();
+  const file = await FileEntry.findById(id).lean();
+  if (!file) {
+    return NextResponse.json({ error: "File not found." }, { status: 404 });
+  }
+
+  const { user, moduleRoles } = auth_;
+  if (!canAccessFile(user.id, user.role, moduleRoles, file as any)) {
+    return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+  }
+
+  const filePath = path.join(UPLOAD_DIR, file.storedName);
+  if (!existsSync(filePath)) {
+    logger.warn(`[Files] File missing on disk: ${file.storedName} (id: ${id})`);
+    return NextResponse.json(
+      { error: "File data not found on server. Contact an admin." },
+      { status: 410 },
+    );
+  }
+
+  // Stream the file using the Web Streams API (Node ≥ 18 / Next.js ≥ 13)
+  const nodeStream = createReadStream(filePath);
+  const webStream = Readable.toWeb(nodeStream) as ReadableStream;
+
+  const safeFilename = encodeURIComponent(file.originalName);
+  const disposition = file.isDownloadable
+    ? `attachment; filename="${safeFilename}"; filename*=UTF-8''${safeFilename}`
+    : "inline";
+
+  return new NextResponse(webStream, {
+    headers: {
+      "Content-Type": file.mimeType,
+      "Content-Disposition": disposition,
+      "Content-Length": String(file.size),
+      "Cache-Control": "private, no-store",
+    },
+  });
+}
+
+// PATCH /api/files/[id]
+
+export async function PATCH(request: NextRequest, context: RouteContext) {
+  const { id } = await context.params;
+
+  const auth_ = await resolveSession(request);
+  if (!auth_) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return NextResponse.json({ error: "Invalid file ID." }, { status: 400 });
+  }
+
+  await dbConnect();
+  const file = await FileEntry.findById(id);
+  if (!file) {
+    return NextResponse.json({ error: "File not found." }, { status: 404 });
+  }
+
+  const { user, moduleRoles } = auth_;
+  if (!canManageFile(user.id, user.role, moduleRoles, file as any)) {
+    return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+  }
+
+  let body: Record<string, any>;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+  }
+
+  // Whitelist of editable fields (are immutable)
+  const EDITABLE = [
+    "title",
+    "description",
+    "folder",
+    "isDownloadable",
+    "accessControl",
+  ] as const;
+
+  const update: Record<string, any> = {};
+  for (const key of EDITABLE) {
+    if (key in body) update[key] = body[key];
+  }
+
+  if (update.title !== undefined) {
+    update.title = String(update.title).trim();
+    if (!update.title) {
+      return NextResponse.json(
+        { error: "Title cannot be empty." },
+        { status: 400 },
+      );
+    }
+  }
+
+  const updated = await FileEntry.findByIdAndUpdate(id, update, { new: true })
+    .select("-storedName")
+    .lean();
+
+  logger.info(
+    `[Files] ${user.email} updated metadata for "${file.title}" (id: ${id})`,
+  );
+  return NextResponse.json({ file: updated });
+}
+
+// DELETE /api/files/[id]
+
+export async function DELETE(request: NextRequest, context: RouteContext) {
+  const { id } = await context.params;
+
+  const auth_ = await resolveSession(request);
+  if (!auth_) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return NextResponse.json({ error: "Invalid file ID." }, { status: 400 });
+  }
+
+  await dbConnect();
+  const file = await FileEntry.findById(id);
+  if (!file) {
+    return NextResponse.json({ error: "File not found." }, { status: 404 });
+  }
+
+  const { user, moduleRoles } = auth_;
+  if (!canManageFile(user.id, user.role, moduleRoles, file as any)) {
+    return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+  }
+
+  // Remove from disk first, if it fails we log but still remove the DB entry
+  // to avoid orphaned metadata pointing at ghost files
+  const filePath = path.join(UPLOAD_DIR, file.storedName);
+  try {
+    await unlink(filePath);
+  } catch (err) {
+    logger.warn(`[Files] Could not delete disk file: ${filePath}`, err);
+  }
+
+  await FileEntry.findByIdAndDelete(id);
+
+  logger.info(`[Files] ${user.email} deleted "${file.title}" (id: ${id})`);
+  return NextResponse.json({ success: true });
+}
