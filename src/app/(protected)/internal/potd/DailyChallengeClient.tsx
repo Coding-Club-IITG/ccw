@@ -14,6 +14,7 @@ export default function DailyChallengeClient({ cfVerified, initialChallenge }: P
   const [timeLeft, setTimeLeft] = useState<string>("");
   const [hoursLeft, setHoursLeft] = useState<number>(0);
   const [syncing, setSyncing] = useState(false);
+  const [cooldownLeft, setCooldownLeft] = useState(0);
   const [isClient, setIsClient] = useState(false);
   const [challenge, setChallenge] = useState(initialChallenge);
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -66,12 +67,27 @@ export default function DailyChallengeClient({ cfVerified, initialChallenge }: P
     return () => clearInterval(timer);
   }, [challenge]);
 
+  // Handle local cooldown
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (cooldownLeft > 0) {
+      timer = setInterval(() => {
+        setCooldownLeft((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [cooldownLeft]);
+
   const handleSync = async () => {
     if (!challenge) return;
     setSyncing(true);
     setSyncError(null);
     try {
       const result = await syncMySubmission(challenge.challengeId);
+      
+      // Update local cooldown
+      setCooldownLeft(60);
+
       if (result.ok) {
         setChallenge((prev) =>
           prev
@@ -221,9 +237,14 @@ export default function DailyChallengeClient({ cfVerified, initialChallenge }: P
                 <button
                   className={styles.syncBtn}
                   onClick={handleSync}
-                  disabled={syncing}
+                  disabled={syncing || cooldownLeft > 0}
+                  style={cooldownLeft > 0 ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
                 >
-                  {syncing ? "Syncing..." : "Sync My Answer"}
+                  {syncing
+                    ? "Syncing..." 
+                    : cooldownLeft > 0 
+                      ? `Wait ${cooldownLeft}s`
+                      : "Sync My Answer"}
                 </button>
               )}
             </>
@@ -235,6 +256,13 @@ export default function DailyChallengeClient({ cfVerified, initialChallenge }: P
               </Link>
             </div>
           )}
+        </div>
+
+        <div style={{ marginTop: "1.5rem", fontSize: "0.85rem", color: "#6b7280", textAlign: "Left", lineHeight: "1.4" }}>
+          <p><strong>Points Calculation:</strong></p>
+          <p>Base = Rating / 10 &nbsp;|&nbsp; Multiplier drops up to 50% linearly over 24h.</p>
+          <p>Streak bonus: +5% per day (up to 10 days, max 50%).</p>
+          <p><em>Solves in the grace window (5:00 PM - 6:00 PM next day) yield 0 points but saves streak.</em></p>
         </div>
       </div>
     </div>

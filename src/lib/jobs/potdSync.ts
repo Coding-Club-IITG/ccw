@@ -7,10 +7,12 @@ import PotdSubmission from "@/models/PotdSubmission";
 import { logger } from "@/lib/utils";
 import { computePoints } from "@/lib/potd-utils";
 
-const CF_SUBMISSIONS_COUNT = 50;
+// 50 per user is plenty since we do this daily, but Codeforces API permits up to 10M, we keep it small 
+const CF_SUBMISSIONS_COUNT = 100;
 const RETRY_DELAY_MS = 5 * 60 * 1000; // 5 minutes between health-check retries
 const MAX_RETRIES = 6;
-const INTER_USER_DELAY_MS = 2_100; // 2.1s between CF API calls to stay within rate limit
+// Codeforces allows about 1 request/s. Using 2.1s protects the server from bans.
+const INTER_USER_DELAY_MS = 2_100; 
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -200,8 +202,9 @@ export async function syncPotdSubmissions(): Promise<void> {
   }
 
   // Acquire cron lock — prevents manual syncs during cron run
+  // Increased to 60 minutes to account for CF rate limits with potentially hundreds of users
   const cronLockKey = `potd:cron:lock:${challenge._id}`;
-  const locked = await redis.set(cronLockKey, "1", { NX: true, EX: 10 * 60 });
+  const locked = await redis.set(cronLockKey, "1", { NX: true, EX: 20 * 60 });
   if (!locked) {
     logger.warn("[potd-sync] Cron already running for this challenge, skipping");
     return;

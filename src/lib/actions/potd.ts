@@ -51,8 +51,10 @@ export async function getTodayChallenge(): Promise<{
   const now = new Date();
   const challenge = await DailyChallenge.findOne({
     windowStart: { $lte: now },
-    graceEnd: { $gte: now },
-  }).populate("problem");
+    windowEnd: { $gte: now },
+  })
+    .sort({ windowStart: -1 })
+    .populate("problem");
 
   if (!challenge) return { ok: false, error: "No active challenge" };
 
@@ -129,6 +131,16 @@ export async function syncMySubmission(challengeId: string): Promise<{
   if (!advisorySet) {
     await redis.del(rateLimitKey); // release rate limit on lock failure
     return { ok: false, error: "Sync already in progress" };
+  }
+
+  // L2.5: GLOBAL CF API Rate limit (Codeforces allows ~1 per second)
+  // Ensures across all manual frontend syncs, we only hit CF API once every 1-2 seconds
+  const globalCFLimitKey = `potd:sync:cf_api_global`;
+  const cfApiLocked = await redis.set(globalCFLimitKey, "1", { NX: true, EX: 2 });
+  if (!cfApiLocked) {
+    await redis.del(rateLimitKey);
+    await redis.del(advisoryKey);
+    return { ok: false, error: "Codeforces is busy. Please try again in 5 seconds." };
   }
 
   // L3: check if cron is running for this challenge

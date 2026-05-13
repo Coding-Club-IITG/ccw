@@ -35,6 +35,14 @@ export async function POST(req: Request) {
        const ttl = await redis.ttl(redisKey);
        return NextResponse.json({ error: `Try again in ${ttl} seconds` }, { status: 429 });
     }
+    
+    // Global rate limit for any CF API call to prevent server IP bans
+    const globalCfLimitKey = `cf:api:global_lock`;
+    const cfLocked = await redis.set(globalCfLimitKey, "1", { NX: true, EX: 2 });
+    if (!cfLocked) {
+       return NextResponse.json({ error: "Codeforces is busy, please try again in a few seconds." }, { status: 429 });
+    }
+
     await redis.set(redisKey, "1", { EX: 60 });
 
     const cfRes = await fetch(`https://codeforces.com/api/user.info?handles=${handle}`);
