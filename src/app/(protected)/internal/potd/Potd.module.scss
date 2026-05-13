@@ -186,3 +186,72 @@
     }
   }
 }
+
+.pointsInfo {
+  margin-top: 2rem;
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 1.25rem;
+  border: 1px solid #e2e8f0;
+
+  .pointsHeader {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    color: #0f172a;
+    font-size: 0.95rem;
+    margin-bottom: 1rem;
+
+    svg {
+      color: #6366f1;
+    }
+  }
+
+  .pointsGrid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: 1fr;
+    color: #475569;
+    font-size: 0.85rem;
+
+    @media (min-width: 640px) {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .pointsItem {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      background: #ffffff;
+      padding: 0.75rem;
+      border-radius: 8px;
+      border: 1px solid #f1f5f9;
+
+      > span:first-child {
+        font-weight: 600;
+        color: #334155;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+    }
+  }
+
+  .graceNote {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px dashed #cbd5e1;
+    font-size: 0.8rem;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+
+    svg {
+      color: #94a3b8;
+      flex-shrink: 0;
+    }
+  }
+}
+

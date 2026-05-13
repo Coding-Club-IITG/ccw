@@ -10,6 +10,9 @@ import User from "@/models/User";
 import Problem from "@/models/Problem";
 import DailyChallenge from "@/models/DailyChallenge";
 import PotdSubmission from "@/models/PotdSubmission";
+
+[User, Problem, DailyChallenge, PotdSubmission].forEach((m) => m && m.init && m.init());
+
 import { logger } from "@/lib/utils";
 import { isAdmin } from "@/lib/roles";
 import { computeWindowTimes, computePoints } from "@/lib/potd-utils";
@@ -53,6 +56,20 @@ export async function setDailyProblem(
   const existing = await DailyChallenge.findOne({ windowStart });
   if (existing) {
     return { ok: false, error: "A problem is already set for this date" };
+  }
+
+  // Check if this problem has already been used on a previous day
+  const existingProblem = await Problem.findOne({
+    cfContestId,
+    cfIndex: cfIndex.toUpperCase(),
+  });
+  
+  if (existingProblem) {
+    const previousUsage = await DailyChallenge.findOne({ problem: existingProblem._id });
+    if (previousUsage) {
+      const usedDate = new Date(previousUsage.windowStart.getTime() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      return { ok: false, error: `This problem was already used for a POTD on ${usedDate}` };
+    }
   }
 
   // Fetch CF problem metadata via problemset.problems (cached 24h)

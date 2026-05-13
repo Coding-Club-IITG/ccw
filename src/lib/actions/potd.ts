@@ -10,6 +10,10 @@ import User from "@/models/User";
 import Problem from "@/models/Problem";
 import DailyChallenge from "@/models/DailyChallenge";
 import PotdSubmission from "@/models/PotdSubmission";
+
+// Ensure models are registered (prevents Next.js compiler from tree-shaking unused model imports)
+[User, Problem, DailyChallenge, PotdSubmission].forEach((m) => m && m.init && m.init());
+
 import { logger } from "@/lib/utils";
 import {
   computeWindowTimes,
