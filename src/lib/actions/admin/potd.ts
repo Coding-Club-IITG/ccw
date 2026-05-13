@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import axios from "axios";
 import dbConnect from "@/lib/mongodb";
+import redis from "@/lib/redis";
 import User from "@/models/User";
 import Problem from "@/models/Problem";
 import DailyChallenge from "@/models/DailyChallenge";
@@ -54,25 +55,36 @@ export async function setDailyProblem(
     return { ok: false, error: "A problem is already set for this date" };
   }
 
-  // Fetch CF problem metadata
+  // Fetch CF problem metadata via problemset.problems (cached 24h)
   let problemName: string;
   let problemRating: number;
   let problemTags: string[];
 
   try {
     const indexUpper = cfIndex.toUpperCase();
-    const { data } = await axios.get(
-      `https://codeforces.com/api/contest.standings?contestId=${cfContestId}&from=1&count=1`,
-      { timeout: 10_000 },
-    );
-    if (data.status !== "OK") {
-      return { ok: false, error: `CF API error: ${data.comment ?? "unknown"}` };
+    const CACHE_KEY = "cf:problemset:problems:v1";
+
+    let allProblems: any[];
+    const cached = await redis.get(CACHE_KEY);
+    if (cached) {
+      allProblems = JSON.parse(cached);
+    } else {
+      const { data } = await axios.get(
+        "https://codeforces.com/api/problemset.problems",
+        { timeout: 30_000 },
+      );
+      if (data.status !== "OK") {
+        return { ok: false, error: `CF API error: ${data.comment ?? "unknown"}` };
+      }
+      allProblems = data.result.problems;
+      await redis.set(CACHE_KEY, JSON.stringify(allProblems), { EX: 86_400 });
     }
-    const cfProblem = (data.result.problems as any[]).find(
-      (p) => p.index.toUpperCase() === indexUpper,
+
+    const cfProblem = allProblems.find(
+      (p) => p.contestId === cfContestId && p.index.toUpperCase() === indexUpper,
     );
     if (!cfProblem) {
-      return { ok: false, error: `Problem ${cfIndex} not found in contest ${cfContestId}` };
+      return { ok: false, error: `Problem ${cfContestId}${cfIndex} not found in CF problemset` };
     }
     problemName = cfProblem.name;
     problemRating = cfProblem.rating ?? 0;
