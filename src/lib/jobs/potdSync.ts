@@ -2,7 +2,7 @@ import axios from "axios";
 import dbConnect from "@/lib/mongodb";
 import redis from "@/lib/redis";
 import User from "@/models/User";
-import DailyChallenge from "@/models/DailyChallenge";
+import DailyChallenge from "@/models/POTDDailyChallenge";
 import PotdSubmission from "@/models/PotdSubmission";
 import { logger } from "@/lib/utils";
 import { computePoints } from "@/lib/potd-utils";

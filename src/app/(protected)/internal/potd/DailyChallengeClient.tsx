@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import styles from "./Potd.module.scss";
 import { syncMySubmission, type TodayChallengeResult } from "@/lib/actions/potd";
+import { IconCheckCircle, IconInfoCircle } from "@/components/Icons";
 
 type Props = {
   cfVerified: boolean;
@@ -188,20 +189,11 @@ export default function DailyChallengeClient({ cfVerified, initialChallenge }: P
             <span className={styles.value}>
               {alreadyAccepted ? (
                 <>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
+                  <IconCheckCircle
                     width="20"
                     height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
                     style={{ marginRight: "8px", color: "#10b981" }}
-                  >
-                    <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
+                  />
                   Solved ({challenge.mySubmission.pointsAwarded} pts)
                 </>
               ) : myStatus === "Pending" ? (
@@ -282,11 +274,7 @@ export default function DailyChallengeClient({ cfVerified, initialChallenge }: P
           </div>
 
           <div className={styles.graceNote}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10"></circle>
-              <line x1="12" y1="8" x2="12" y2="12"></line>
-              <line x1="12" y1="16" x2="12.01" y2="16"></line>
-            </svg>
+            <IconInfoCircle width="16" height="16" />
             <span>Solves in the grace window (5:00 PM - 6:00 PM next day) yield 0 points but save your streak.</span>
           </div>
         </div>

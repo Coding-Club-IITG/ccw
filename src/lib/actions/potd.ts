@@ -7,8 +7,8 @@ import axios from "axios";
 import dbConnect from "@/lib/mongodb";
 import redis from "@/lib/redis";
 import User from "@/models/User";
-import Problem from "@/models/Problem";
-import DailyChallenge from "@/models/DailyChallenge";
+import Problem from "@/models/POTDProblem";
+import DailyChallenge from "@/models/POTDDailyChallenge";
 import PotdSubmission from "@/models/PotdSubmission";
 
 // Ensure models are registered (prevents Next.js compiler from tree-shaking unused model imports)
