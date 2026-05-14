@@ -13,8 +13,10 @@ export const auth = betterAuth({
   database: mongodbAdapter(db, {
     client,
   }),
+
   secret: process.env.AUTH_SECRET,
   baseURL: process.env.BASE_URL,
+
   user: {
     modelName: "users",
     additionalFields: {
@@ -46,6 +48,7 @@ export const auth = betterAuth({
       },
     },
   },
+
   socialProviders: {
     microsoft: {
       clientId: process.env.AZURE_CLIENT_ID as string,
@@ -53,8 +56,10 @@ export const auth = betterAuth({
       tenantId: process.env.AZURE_TENANT_ID as string,
       scope: ["User.Read", "offline_access"],
       prompt: "select_account",
+      disableImplicitSignUp: true,
     },
   },
+
   account: {
     accountLinking: {
       enabled: true,

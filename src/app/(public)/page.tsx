@@ -1,6 +1,13 @@
 import Link from "next/link";
 
-export default function Home() {
+interface Props {
+  searchParams: Promise<{ error?: string }>;
+}
+
+export default async function Home({ searchParams }: Props) {
+  const { error } = await searchParams;
+  const isUnauthorized = error?.includes("unauthorized");
+
   return (
     <div
       style={{
@@ -13,6 +20,24 @@ export default function Home() {
         padding: "2rem",
       }}
     >
+      {isUnauthorized && (
+        <div
+          style={{
+            marginBottom: "2rem",
+            padding: "1rem 1.5rem",
+            background: "#fff3f3",
+            border: "1px solid #f5c6cb",
+            borderRadius: "8px",
+            color: "#842029",
+            maxWidth: "520px",
+            width: "100%",
+          }}
+        >
+          <strong>Access denied.</strong> Your account is not authorised to use
+          this application.
+        </div>
+      )}
+
       <h1
         style={{
           fontSize: "3.5rem",

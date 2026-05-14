@@ -21,7 +21,6 @@ next-env.d.ts
 .DS_Store
 *.pem
 .gemini
-.github/
 
 # File uploads
 uploads/
