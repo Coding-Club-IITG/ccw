@@ -3,9 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "concurrently -k -n web,worker -c cyan,magenta \"next dev\" \"tsx src/worker.ts\"",
+    "dev:web": "next dev",
+    "worker": "tsx src/worker.ts",
     "build": "next build",
-    "start": "next start",
+    "start": "concurrently -k -n web,worker -c cyan,magenta \"next start\" \"tsx src/worker.ts\"",
+    "start:web": "next start",
     "lint": "next lint",
     "seed": "tsx scripts/seed.ts"
   },
@@ -30,6 +33,7 @@
     "@types/node": "^25.6.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "concurrently": "^9.2.1",
     "dotenv": "^17.4.2",
     "eslint": "^10.3.0",
     "eslint-config-next": "^16.2.6",
