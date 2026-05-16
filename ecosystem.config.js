@@ -3,7 +3,7 @@ module.exports = {
     {
       name: "ccw-web",
       script: "pnpm",
-      args: "start",
+      args: "start:web",
       // instances: "max",
       // exec_mode: "cluster",
       instances: 1,
@@ -15,7 +15,7 @@ module.exports = {
     {
       name: "ccw-worker",
       script: "pnpm",
-      args: "exec tsx src/worker.ts",
+      args: "worker",
       instances: 1,
       exec_mode: "fork",
     },
