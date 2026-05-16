@@ -11,7 +11,10 @@ type Props = {
   initialMonthly: LeaderboardEntry[];
 };
 
-export default function LeaderboardClient({ initialWeekly, initialMonthly }: Props) {
+export default function LeaderboardClient({
+  initialWeekly,
+  initialMonthly,
+}: Props) {
   const [activeTab, setActiveTab] = useState<Tab>("weekly");
 
   const data = activeTab === "weekly" ? initialWeekly : initialMonthly;

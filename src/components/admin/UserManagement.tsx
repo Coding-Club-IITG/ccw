@@ -11,6 +11,7 @@ import {
 import styles from "./UserManagement.module.scss";
 import { Trash2, Plus, X, Save } from "lucide-react";
 import { GLOBAL_ROLES as ROLES, MODULES, MODULE_ROLES } from "@/lib/constants";
+import { isGlobalAdmin, isModuleHead } from "@/lib/roles";
 
 export default function UserManagement() {
   const [users, setUsers] = useState<any[]>([]);
@@ -89,7 +90,7 @@ export default function UserManagement() {
   function addTempModuleRole() {
     setTempModuleRoles([
       ...tempModuleRoles,
-      { module: MODULES[0], role: MODULE_ROLES[3] },
+      { module: MODULES[0], role: MODULE_ROLES[0] },
     ]);
   }
 
@@ -171,12 +172,14 @@ export default function UserManagement() {
                       </li>
                     ))}
                   </ul>
-                  <div
-                    className={styles.addModuleRole}
-                    onClick={() => openModuleRoleModal(user)}
-                  >
-                    Edit Module Roles
-                  </div>
+                  {!isGlobalAdmin(user.role) && (
+                    <div
+                      className={styles.addModuleRole}
+                      onClick={() => openModuleRoleModal(user)}
+                    >
+                      Edit Module Roles
+                    </div>
+                  )}
                 </td>
                 <td>
                   <button
@@ -220,18 +223,20 @@ export default function UserManagement() {
                       </option>
                     ))}
                   </select>
-                  <select
-                    value={mr.role}
-                    onChange={(e) =>
-                      updateTempModuleRole(idx, "role", e.target.value)
-                    }
-                  >
-                    {MODULE_ROLES.map((r) => (
-                      <option key={r} value={r}>
-                        {r}
-                      </option>
-                    ))}
-                  </select>
+                  {!isModuleHead(editingUser.role) && (
+                    <select
+                      value={mr.role || ""}
+                      onChange={(e) =>
+                        updateTempModuleRole(idx, "role", e.target.value)
+                      }
+                    >
+                      {MODULE_ROLES.map((r) => (
+                        <option key={r} value={r}>
+                          {r}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                   <button onClick={() => removeTempModuleRole(idx)}>
                     <X size={14} />
                   </button>

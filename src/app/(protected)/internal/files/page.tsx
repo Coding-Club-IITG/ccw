@@ -25,10 +25,10 @@ export default async function FilesPage() {
     email: user.email,
     role: user.role,
     moduleRoles,
-    canUpload: canUploadFiles(user.role, moduleRoles),
+    canUpload: canUploadFiles(user.role),
     isGlobalAdmin: isGlobalAdmin(user.role),
     isAdmin: isAdmin(user.role),
-    headModules: getHeadModules(moduleRoles),
+    headModules: getHeadModules(user.role, moduleRoles),
   };
 
   return <FilesClient currentUser={currentUser} />;

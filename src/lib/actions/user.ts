@@ -7,7 +7,7 @@ import { getClient } from "@/lib/mongodb";
 import User from "@/models/User";
 import { revalidatePath } from "next/cache";
 import { logger } from "@/lib/utils";
-import { isAdmin } from "@/lib/roles";
+import { isAdmin, cleanUserRoles } from "@/lib/roles";
 import { ObjectId } from "mongodb";
 
 async function checkAdmin() {
@@ -55,9 +55,14 @@ export async function updateUserRole(userId: string, role: string) {
   const adminSession = await checkAdmin();
   await dbConnect();
 
+  const user = await User.findById(userId);
+  if (!user) throw new Error("User not found");
+
+  const cleanedModuleRoles = cleanUserRoles(role, user.moduleRoles);
+
   const updatedUser = await User.findByIdAndUpdate(
     userId,
-    { role },
+    { role, moduleRoles: cleanedModuleRoles },
     { new: true },
   );
 
@@ -75,9 +80,14 @@ export async function updateUserModuleRoles(
   const adminSession = await checkAdmin();
   await dbConnect();
 
+  const user = await User.findById(userId);
+  if (!user) throw new Error("User not found");
+
+  const cleanedModuleRoles = cleanUserRoles(user.role, moduleRoles);
+
   const updatedUser = await User.findByIdAndUpdate(
     userId,
-    { moduleRoles },
+    { moduleRoles: cleanedModuleRoles },
     { new: true },
   );
 

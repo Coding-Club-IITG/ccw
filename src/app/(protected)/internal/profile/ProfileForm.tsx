@@ -52,7 +52,10 @@ export default function ProfileForm() {
       setCfVerificationToken("");
       setMessage({ type: "success", text: "Codeforces handle verified!" });
     } catch (error: any) {
-      setMessage({ type: "error", text: error.message || "Verification failed" });
+      setMessage({
+        type: "error",
+        text: error.message || "Verification failed",
+      });
     } finally {
       setVerifying(false);
     }
@@ -64,9 +67,15 @@ export default function ProfileForm() {
     try {
       const token = await requestHandleVerification(formData.codeforcesId);
       setCfVerificationToken(token);
-      setMessage({ type: "success", text: "Token generated. Please update your CF profile." });
+      setMessage({
+        type: "success",
+        text: "Token generated. Please update your CF profile.",
+      });
     } catch (error: any) {
-      setMessage({ type: "error", text: error.message || "Failed to generate token" });
+      setMessage({
+        type: "error",
+        text: error.message || "Failed to generate token",
+      });
     } finally {
       setVerifying(false);
     }
@@ -140,34 +149,109 @@ export default function ProfileForm() {
               }
               placeholder="e.g. tourist"
             />
-            {cfVerified && <span style={{ color: "green", fontWeight: "bold" }}>Verified ✓</span>}
+            {cfVerified && (
+              <span style={{ color: "green", fontWeight: "bold" }}>
+                Verified ✓
+              </span>
+            )}
           </div>
-          
+
           {formData.codeforcesId && !cfVerified && (
-            <div style={{ marginTop: "12px", padding: "1rem", background: "#fef3c7", border: "1px solid #ffeeba", borderRadius: "8px", color: "#856404" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: cfVerificationToken ? "12px" : "0" }}>
+            <div
+              style={{
+                marginTop: "12px",
+                padding: "1rem",
+                background: "#fef3c7",
+                border: "1px solid #ffeeba",
+                borderRadius: "8px",
+                color: "#856404",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: cfVerificationToken ? "12px" : "0",
+                }}
+              >
                 <span style={{ fontSize: "0.95rem" }}>
-                  <strong>Unverified Handle.</strong> 
+                  <strong>Unverified Handle.</strong>
                   {!cfVerificationToken && " Generate a secure token to begin."}
                 </span>
                 {!cfVerificationToken && (
-                  <button type="button" onClick={handleRequestToken} disabled={verifying} style={{ padding: "6px 12px", borderRadius: "4px", border: "1px solid #856404", background: "transparent", color: "#856404", cursor: "pointer", fontWeight: "bold" }}>
+                  <button
+                    type="button"
+                    onClick={handleRequestToken}
+                    disabled={verifying}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: "4px",
+                      border: "1px solid #856404",
+                      background: "transparent",
+                      color: "#856404",
+                      cursor: "pointer",
+                      fontWeight: "bold",
+                    }}
+                  >
                     {verifying ? "Wait..." : "Get Token"}
                   </button>
                 )}
               </div>
 
               {cfVerificationToken && (
-                <div style={{ background: "rgba(255,255,255,0.6)", padding: "12px", borderRadius: "6px", fontSize: "0.9rem", lineHeight: "1.6" }}>
+                <div
+                  style={{
+                    background: "rgba(255,255,255,0.6)",
+                    padding: "12px",
+                    borderRadius: "6px",
+                    fontSize: "0.9rem",
+                    lineHeight: "1.6",
+                  }}
+                >
                   <ol style={{ margin: "0 0 12px 0", paddingLeft: "1.2rem" }}>
                     <li>
-                      Update your Codeforces <strong>First Name</strong> to: 
-                      <code style={{ background: "#fff", border: "1px solid #e2e8f0", padding: "3px 8px", borderRadius: "4px", marginLeft: "8px", fontFamily: "monospace", fontSize: "1rem", fontWeight: "bold", color: "#b45309" }}>{cfVerificationToken}</code>
+                      Update your Codeforces <strong>First Name</strong> to:
+                      <code
+                        style={{
+                          background: "#fff",
+                          border: "1px solid #e2e8f0",
+                          padding: "3px 8px",
+                          borderRadius: "4px",
+                          marginLeft: "8px",
+                          fontFamily: "monospace",
+                          fontSize: "1rem",
+                          fontWeight: "bold",
+                          color: "#b45309",
+                        }}
+                      >
+                        {cfVerificationToken}
+                      </code>
                     </li>
-                    <li style={{ marginTop: "6px" }}>Wait a few seconds for Codeforces to update, then click verify.</li>
+                    <li style={{ marginTop: "6px" }}>
+                      Wait a few seconds for Codeforces to update, then click
+                      verify.
+                    </li>
                   </ol>
-                  <button type="button" onClick={handleVerifySubmit} disabled={verifying} style={{ padding: "8px 16px", borderRadius: "4px", border: "none", background: "#856404", color: "#fff", cursor: "pointer", fontWeight: "bold", width: "100%", transition: "opacity 0.2s" }}>
-                    {verifying ? "Checking with Codeforces..." : "Verify Handle"}
+                  <button
+                    type="button"
+                    onClick={handleVerifySubmit}
+                    disabled={verifying}
+                    style={{
+                      padding: "8px 16px",
+                      borderRadius: "4px",
+                      border: "none",
+                      background: "#856404",
+                      color: "#fff",
+                      cursor: "pointer",
+                      fontWeight: "bold",
+                      width: "100%",
+                      transition: "opacity 0.2s",
+                    }}
+                  >
+                    {verifying
+                      ? "Checking with Codeforces..."
+                      : "Verify Handle"}
                   </button>
                 </div>
               )}

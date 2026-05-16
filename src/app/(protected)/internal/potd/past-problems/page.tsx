@@ -13,7 +13,9 @@ export default async function PastProblemsPage() {
       </div>
 
       {pastProblems.length === 0 ? (
-        <p style={{ color: "#666", padding: "2rem 0" }}>No past problems yet.</p>
+        <p style={{ color: "#666", padding: "2rem 0" }}>
+          No past problems yet.
+        </p>
       ) : (
         <div className={styles.tableContainer}>
           <table className={styles.table}>
@@ -42,7 +44,9 @@ export default async function PastProblemsPage() {
                   <tr key={p.challengeId}>
                     <td className={styles.subText}>{dateLabel}</td>
                     <td>
-                      <span className={styles.problemId}>CF {problemLabel}</span>
+                      <span className={styles.problemId}>
+                        CF {problemLabel}
+                      </span>
                       <a
                         href={problemUrl}
                         target="_blank"

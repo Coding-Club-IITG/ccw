@@ -31,7 +31,10 @@ export default function SetProblemClient() {
   const [problems, setProblems] = useState<ScheduledChallenge[]>([]);
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [isEditing, setIsEditing] = useState<string | null>(null);
-  const [formData, setFormData] = useState<FormData>({ date: "", problemId: "" });
+  const [formData, setFormData] = useState<FormData>({
+    date: "",
+    problemId: "",
+  });
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -95,7 +98,8 @@ export default function SetProblemClient() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to remove this scheduled problem?")) return;
+    if (!confirm("Are you sure you want to remove this scheduled problem?"))
+      return;
     const result = await deleteScheduledChallenge(id);
     if (!result.ok) {
       alert(result.error ?? "Failed to delete");
@@ -131,7 +135,8 @@ export default function SetProblemClient() {
 
         {!loadingInitial && problems.length === 0 && isEditing !== "new" && (
           <div className={styles.emptyState}>
-            No upcoming problems scheduled. Click &quot;Add Problem&quot; to get started.
+            No upcoming problems scheduled. Click &quot;Add Problem&quot; to get
+            started.
           </div>
         )}
 

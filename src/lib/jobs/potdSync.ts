@@ -7,12 +7,12 @@ import PotdSubmission from "@/models/PotdSubmission";
 import { logger } from "@/lib/utils";
 import { computePoints } from "@/lib/potd-utils";
 
-// 50 per user is plenty since we do this daily, but Codeforces API permits up to 10M, we keep it small 
+// 50 per user is plenty since we do this daily, but Codeforces API permits up to 10M, we keep it small
 const CF_SUBMISSIONS_COUNT = 100;
 const RETRY_DELAY_MS = 5 * 60 * 1000; // 5 minutes between health-check retries
 const MAX_RETRIES = 6;
 // Codeforces allows about 1 request/s. Using 2.1s protects the server from bans.
-const INTER_USER_DELAY_MS = 2_100; 
+const INTER_USER_DELAY_MS = 2_100;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -206,7 +206,9 @@ export async function syncPotdSubmissions(): Promise<void> {
   const cronLockKey = `potd:cron:lock:${challenge._id}`;
   const locked = await redis.set(cronLockKey, "1", { NX: true, EX: 20 * 60 });
   if (!locked) {
-    logger.warn("[potd-sync] Cron already running for this challenge, skipping");
+    logger.warn(
+      "[potd-sync] Cron already running for this challenge, skipping",
+    );
     return;
   }
 
@@ -214,7 +216,9 @@ export async function syncPotdSubmissions(): Promise<void> {
     // Phase 1: Health check
     const cfReachable = await waitForCFApi();
     if (!cfReachable) {
-      logger.error("[potd-sync] CF API unreachable after all retries, aborting");
+      logger.error(
+        "[potd-sync] CF API unreachable after all retries, aborting",
+      );
       return;
     }
 

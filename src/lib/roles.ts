@@ -4,7 +4,7 @@
 
 export interface ParsedModuleRole {
   module: string;
-  role: string;
+  role?: string;
 }
 
 // Handles both raw array and stringified form
@@ -22,22 +22,43 @@ export function parseModuleRoles(raw: any): ParsedModuleRole[] {
   return [];
 }
 
-// Checks if a user has an administrative role
-export function isAdmin(role?: string): boolean {
-  return role === "Secretary" || role === "OC" || role === "Core Team";
-}
-
 // Global administrators
 export function isGlobalAdmin(role?: string): boolean {
   return role === "Secretary" || role === "OC";
 }
 
+// Checks if a user has an administrative role
+export function isAdmin(role?: string): boolean {
+  return role === "Secretary" || role === "OC" || role === "Heads";
+}
+
+// Checks if a user can set POTD problems
+export function canSetPOTD(role?: string): boolean {
+  return isAdmin(role) || role === "Core Team";
+}
+
 // Module Heads
-export function isModuleHead(moduleRoles: ParsedModuleRole[]): boolean {
-  return moduleRoles.some((mr) => mr.role === "Head");
+export function isModuleHead(role?: string): boolean {
+  return role === "Head";
 }
 
 // List of modules for which user is Head
-export function getHeadModules(moduleRoles: ParsedModuleRole[]): string[] {
-  return moduleRoles.filter((mr) => mr.role === "Head").map((mr) => mr.module);
+export function getHeadModules(
+  role?: string,
+  moduleRoles?: ParsedModuleRole[],
+): string[] {
+  if (role !== "Head" || !moduleRoles) return [];
+  return moduleRoles.map((mr) => mr.module);
+}
+
+// Enforces role constraints
+export function cleanUserRoles(role: string, moduleRoles: any[]): any[] {
+  if (role === "Secretary" || role === "OC") {
+    return []; // Cannot have module roles
+  }
+  if (role === "Head") {
+    // Heads can only have module, not specific role
+    return moduleRoles.map((mr) => ({ module: mr.module }));
+  }
+  return moduleRoles;
 }

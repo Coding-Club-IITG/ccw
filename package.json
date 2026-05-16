@@ -13,13 +13,13 @@
     "seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
-    "@agendajs/mongo-backend": "^4.0.1",
-    "@agendajs/redis-backend": "^3.0.5",
-    "@better-auth/mongo-adapter": "^1.6.10",
-    "agenda": "^6.2.4",
-    "axios": "^1.16.0",
-    "better-auth": "^1.6.10",
-    "lucide-react": "^1.14.0",
+    "@agendajs/mongo-backend": "^4.0.2",
+    "@agendajs/redis-backend": "^3.0.6",
+    "@better-auth/mongo-adapter": "^1.6.11",
+    "agenda": "^6.2.5",
+    "axios": "^1.16.1",
+    "better-auth": "^1.6.11",
+    "lucide-react": "^1.16.0",
     "mongodb": "^7.2.0",
     "mongoose": "^9.6.2",
     "next": "^16.2.6",
@@ -30,14 +30,14 @@
     "zustand": "^5.0.13"
   },
   "devDependencies": {
-    "@types/node": "^25.6.2",
+    "@types/node": "^25.8.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "concurrently": "^9.2.1",
     "dotenv": "^17.4.2",
     "eslint": "^10.3.0",
     "eslint-config-next": "^16.2.6",
-    "tsx": "^4.21.0",
+    "tsx": "^4.22.0",
     "typescript": "^6.0.3"
   }
 }

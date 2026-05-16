@@ -22,7 +22,7 @@ export async function requestHandleVerification(handle: string) {
 
   await dbConnect();
   const token = generateToken();
-  
+
   await User.findByIdAndUpdate(session.user.id, {
     codeforcesId: handle,
     cfVerificationToken: token,

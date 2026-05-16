@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
   const user = session.user as any;
   const moduleRoles = parseModuleRoles(user.moduleRoles);
 
-  if (!canUploadFiles(user.role, moduleRoles)) {
+  if (!canUploadFiles(user.role)) {
     return NextResponse.json(
       { error: "Only admins and module heads can upload files." },
       { status: 403 },
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
   let uploaderModule: string | null = null;
 
   if (uploaderModuleRaw && uploaderModuleRaw !== "null") {
-    const headModules = getHeadModules(moduleRoles);
+    const headModules = getHeadModules(user.role, moduleRoles);
     if (isAdmin(user.role)) {
       uploaderModule = uploaderModuleRaw;
     } else if (headModules.includes(uploaderModuleRaw)) {

@@ -20,6 +20,7 @@ const UserSchema = new mongoose.Schema(
         role: {
           type: String,
           enum: MODULE_ROLES,
+          required: false,
         },
       },
     ],
@@ -27,7 +28,7 @@ const UserSchema = new mongoose.Schema(
     githubId: { type: String, default: "" },
     bio: { type: String, default: "" },
     phoneNumber: { type: String, default: "" },
-    
+
     // POTD & CF Verification
     cfVerified: { type: Boolean, default: false },
     cfVerificationToken: { type: String, default: "" },

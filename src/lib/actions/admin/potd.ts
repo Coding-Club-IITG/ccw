@@ -11,17 +11,19 @@ import Problem from "@/models/POTDProblem";
 import DailyChallenge from "@/models/POTDDailyChallenge";
 import PotdSubmission from "@/models/PotdSubmission";
 
-[User, Problem, DailyChallenge, PotdSubmission].forEach((m) => m && m.init && m.init());
+[User, Problem, DailyChallenge, PotdSubmission].forEach(
+  (m) => m && m.init && m.init(),
+);
 
 import { logger } from "@/lib/utils";
-import { isAdmin } from "@/lib/roles";
+import { canSetPOTD } from "@/lib/roles";
 import { computeWindowTimes, computePoints } from "@/lib/potd-utils";
 
 async function checkAdmin() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) return null;
   const user = session.user as any;
-  if (!isAdmin(user.role)) return null;
+  if (!canSetPOTD(user.role)) return null;
   return session;
 }
 
@@ -63,12 +65,21 @@ export async function setDailyProblem(
     cfContestId,
     cfIndex: cfIndex.toUpperCase(),
   });
-  
+
   if (existingProblem) {
-    const previousUsage = await DailyChallenge.findOne({ problem: existingProblem._id });
+    const previousUsage = await DailyChallenge.findOne({
+      problem: existingProblem._id,
+    });
     if (previousUsage) {
-      const usedDate = new Date(previousUsage.windowStart.getTime() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10);
-      return { ok: false, error: `This problem was already used for a POTD on ${usedDate}` };
+      const usedDate = new Date(
+        previousUsage.windowStart.getTime() + 5.5 * 60 * 60 * 1000,
+      )
+        .toISOString()
+        .slice(0, 10);
+      return {
+        ok: false,
+        error: `This problem was already used for a POTD on ${usedDate}`,
+      };
     }
   }
 
@@ -91,17 +102,24 @@ export async function setDailyProblem(
         { timeout: 30_000 },
       );
       if (data.status !== "OK") {
-        return { ok: false, error: `CF API error: ${data.comment ?? "unknown"}` };
+        return {
+          ok: false,
+          error: `CF API error: ${data.comment ?? "unknown"}`,
+        };
       }
       allProblems = data.result.problems;
       await redis.set(CACHE_KEY, JSON.stringify(allProblems), { EX: 86_400 });
     }
 
     const cfProblem = allProblems.find(
-      (p) => p.contestId === cfContestId && p.index.toUpperCase() === indexUpper,
+      (p) =>
+        p.contestId === cfContestId && p.index.toUpperCase() === indexUpper,
     );
     if (!cfProblem) {
-      return { ok: false, error: `Problem ${cfContestId}${cfIndex} not found in CF problemset` };
+      return {
+        ok: false,
+        error: `Problem ${cfContestId}${cfIndex} not found in CF problemset`,
+      };
     }
     problemName = cfProblem.name;
     problemRating = cfProblem.rating ?? 0;
@@ -200,7 +218,10 @@ export async function deleteScheduledChallenge(
 
   const now = new Date();
   if (challenge.windowStart <= now) {
-    return { ok: false, error: "Cannot delete a challenge that has already started" };
+    return {
+      ok: false,
+      error: "Cannot delete a challenge that has already started",
+    };
   }
 
   await DailyChallenge.deleteOne({ _id: challengeId });
@@ -271,7 +292,8 @@ export async function forceSyncUser(
     return { ok: false, error: "User's CF handle not verified" };
   }
 
-  const challenge = await DailyChallenge.findById(challengeId).populate("problem");
+  const challenge =
+    await DailyChallenge.findById(challengeId).populate("problem");
   if (!challenge) return { ok: false, error: "Challenge not found" };
 
   const problem = challenge.problem as any;

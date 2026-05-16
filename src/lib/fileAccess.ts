@@ -31,11 +31,8 @@ export interface SessionUser {
 }
 
 // Upload permission
-export function canUploadFiles(
-  role: string,
-  moduleRoles: ParsedModuleRole[],
-): boolean {
-  return isAdmin(role) || isModuleHead(moduleRoles);
+export function canUploadFiles(role: string): boolean {
+  return isAdmin(role) || isModuleHead(role);
 }
 
 // Management permission
@@ -47,7 +44,7 @@ export function canManageFile(
 ): boolean {
   if (isGlobalAdmin(role)) return true;
 
-  const headModules = getHeadModules(moduleRoles);
+  const headModules = getHeadModules(role, moduleRoles);
 
   // Module heads
   if (
@@ -91,8 +88,12 @@ export function canAccessFile(
   const userModules = moduleRoles.map((mr) => mr.module);
   if (acl.allowedModules.some((m) => userModules.includes(m))) return true;
 
-  const userModuleRoleValues = moduleRoles.map((mr) => mr.role);
-  if (acl.allowedModuleRoles.some((r) => userModuleRoleValues.includes(r)))
+  const userModuleRoleValues = moduleRoles.map((mr) => mr.role).filter(Boolean);
+  if (
+    acl.allowedModuleRoles.some((r) =>
+      userModuleRoleValues.includes(r as string),
+    )
+  )
     return true;
 
   if (acl.allowedUsers.some((uid) => uid.toString() === userId)) return true;

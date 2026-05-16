@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   const user = session.user as any;
   const moduleRoles = parseModuleRoles(user.moduleRoles);
 
-  if (!canUploadFiles(user.role, moduleRoles)) {
+  if (!canUploadFiles(user.role)) {
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }
 

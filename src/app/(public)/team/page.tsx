@@ -11,12 +11,11 @@ interface TeamMember {
 }
 
 export default async function TeamPage() {
-  // Try to fetch real data, fallback to placeholders if empty
   let teamMembers: TeamMember[] = [];
   try {
     await dbConnect();
     const users = await User.find({
-      role: { $in: ["Secretary", "OC", "Core Team"] },
+      role: { $in: ["Secretary", "OC", "Head"] },
       email: { $ne: "codingclub@iitg.ac.in" },
     }).lean();
     teamMembers = users as unknown as TeamMember[];

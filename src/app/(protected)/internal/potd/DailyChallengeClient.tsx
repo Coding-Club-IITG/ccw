@@ -3,7 +3,10 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import styles from "./Potd.module.scss";
-import { syncMySubmission, type TodayChallengeResult } from "@/lib/actions/potd";
+import {
+  syncMySubmission,
+  type TodayChallengeResult,
+} from "@/lib/actions/potd";
 import { IconCheckCircle, IconInfoCircle } from "@/components/Icons";
 
 type Props = {
@@ -11,7 +14,10 @@ type Props = {
   initialChallenge: TodayChallengeResult | null;
 };
 
-export default function DailyChallengeClient({ cfVerified, initialChallenge }: Props) {
+export default function DailyChallengeClient({
+  cfVerified,
+  initialChallenge,
+}: Props) {
   const [timeLeft, setTimeLeft] = useState<string>("");
   const [hoursLeft, setHoursLeft] = useState<number>(0);
   const [syncing, setSyncing] = useState(false);
@@ -85,7 +91,7 @@ export default function DailyChallengeClient({ cfVerified, initialChallenge }: P
     setSyncError(null);
     try {
       const result = await syncMySubmission(challenge.challengeId);
-      
+
       // Update local cooldown
       setCooldownLeft(60);
 
@@ -208,7 +214,13 @@ export default function DailyChallengeClient({ cfVerified, initialChallenge }: P
         </div>
 
         {syncError && (
-          <p style={{ color: "#e11d48", marginBottom: "1rem", fontSize: "0.9rem" }}>
+          <p
+            style={{
+              color: "#e11d48",
+              marginBottom: "1rem",
+              fontSize: "0.9rem",
+            }}
+          >
             {syncError}
           </p>
         )}
@@ -230,11 +242,15 @@ export default function DailyChallengeClient({ cfVerified, initialChallenge }: P
                   className={styles.syncBtn}
                   onClick={handleSync}
                   disabled={syncing || cooldownLeft > 0}
-                  style={cooldownLeft > 0 ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
+                  style={
+                    cooldownLeft > 0
+                      ? { opacity: 0.5, cursor: "not-allowed" }
+                      : undefined
+                  }
                 >
                   {syncing
-                    ? "Syncing..." 
-                    : cooldownLeft > 0 
+                    ? "Syncing..."
+                    : cooldownLeft > 0
                       ? `Wait ${cooldownLeft}s`
                       : "Sync My Answer"}
                 </button>
@@ -242,7 +258,10 @@ export default function DailyChallengeClient({ cfVerified, initialChallenge }: P
             </>
           ) : (
             <div className={styles.verifyPrompt}>
-              <p>Your Codeforces ID is unverified. Please verify it to participate.</p>
+              <p>
+                Your Codeforces ID is unverified. Please verify it to
+                participate.
+              </p>
               <Link href="/internal/profile" className={styles.verifyBtn}>
                 Verify ID
               </Link>
@@ -252,12 +271,22 @@ export default function DailyChallengeClient({ cfVerified, initialChallenge }: P
 
         <div className={styles.pointsInfo}>
           <div className={styles.pointsHeader}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
             </svg>
             Points Calculation
           </div>
-          
+
           <div className={styles.pointsGrid}>
             <div className={styles.pointsItem}>
               <span>Base Points</span>
@@ -275,7 +304,10 @@ export default function DailyChallengeClient({ cfVerified, initialChallenge }: P
 
           <div className={styles.graceNote}>
             <IconInfoCircle width="16" height="16" />
-            <span>Solves in the grace window (5:00 PM - 6:00 PM next day) yield 0 points but save your streak.</span>
+            <span>
+              Solves in the grace window (5:00 PM - 6:00 PM next day) yield 0
+              points but save your streak.
+            </span>
           </div>
         </div>
       </div>

@@ -26,7 +26,7 @@ export interface CurrentUser {
   name: string;
   email: string;
   role: string;
-  moduleRoles: { module: string; role: string }[];
+  moduleRoles: { module: string; role?: string }[];
   canUpload: boolean;
   isGlobalAdmin: boolean;
   isAdmin: boolean;
