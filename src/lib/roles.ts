@@ -29,7 +29,7 @@ export function isGlobalAdmin(role?: string): boolean {
 
 // Checks if a user has an administrative role
 export function isAdmin(role?: string): boolean {
-  return role === "Secretary" || role === "OC" || role === "Heads";
+  return role === "Secretary" || role === "OC" || role === "Head";
 }
 
 // Checks if a user can set POTD problems

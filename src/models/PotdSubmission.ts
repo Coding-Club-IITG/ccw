@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-const PotdSubmissionSchema = new mongoose.Schema(
+const POTDSubmissionSchema = new mongoose.Schema(
   {
     userId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -31,16 +31,16 @@ const PotdSubmissionSchema = new mongoose.Schema(
 );
 
 // Ensure one record per (user, challenge) pair
-PotdSubmissionSchema.index({ userId: 1, challengeId: 1 }, { unique: true });
+POTDSubmissionSchema.index({ userId: 1, challengeId: 1 }, { unique: true });
 
 // For cron: quickly fetch Pending submissions for a challenge
-PotdSubmissionSchema.index({ challengeId: 1, status: 1 });
+POTDSubmissionSchema.index({ challengeId: 1, status: 1 });
 
 // For leaderboard aggregation
-PotdSubmissionSchema.index({ challengeId: 1, pointsAwarded: 1 });
+POTDSubmissionSchema.index({ challengeId: 1, pointsAwarded: 1 });
 
 // For user profile solve history
-PotdSubmissionSchema.index({ userId: 1, solvedAt: 1 });
+POTDSubmissionSchema.index({ userId: 1, solvedAt: 1 });
 
-export default mongoose.models.PotdSubmission ||
-  mongoose.model("PotdSubmission", PotdSubmissionSchema);
+export default mongoose.models.POTDSubmission ||
+  mongoose.model("POTDSubmission", POTDSubmissionSchema);

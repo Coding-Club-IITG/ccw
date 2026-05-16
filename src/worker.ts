@@ -1,7 +1,7 @@
 import "./lib/env";
 import agenda from "./lib/agenda";
 import { syncCodeforcesRatings } from "./lib/jobs/cfSync";
-import { syncPotdSubmissions } from "./lib/jobs/potdSync";
+import { syncPOTDSubmissions } from "./lib/jobs/potdSync";
 import { logger } from "./lib/utils";
 import dbConnect from "./lib/mongodb";
 
@@ -17,7 +17,7 @@ async function run() {
   });
 
   agenda.define("sync-potd-submissions", async () => {
-    await syncPotdSubmissions();
+    await syncPOTDSubmissions();
   });
 
   // Start agenda

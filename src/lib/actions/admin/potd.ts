@@ -9,9 +9,9 @@ import redis from "@/lib/redis";
 import User from "@/models/User";
 import Problem from "@/models/POTDProblem";
 import DailyChallenge from "@/models/POTDDailyChallenge";
-import PotdSubmission from "@/models/PotdSubmission";
+import POTDSubmission from "@/models/POTDSubmission";
 
-[User, Problem, DailyChallenge, PotdSubmission].forEach(
+[User, Problem, DailyChallenge, POTDSubmission].forEach(
   (m) => m && m.init && m.init(),
 );
 
@@ -251,7 +251,7 @@ export async function getPendingSubmissions(challengeId: string): Promise<{
 
   await dbConnect();
 
-  const subs = await PotdSubmission.find({
+  const subs = await POTDSubmission.find({
     challengeId,
     status: "Pending",
   }).populate("userId", "name codeforcesId");
@@ -342,7 +342,7 @@ export async function forceSyncUser(
     );
   }
 
-  const prevSub = await PotdSubmission.findOneAndUpdate(
+  const prevSub = await POTDSubmission.findOneAndUpdate(
     { userId: targetUserId, challengeId },
     {
       $set: {

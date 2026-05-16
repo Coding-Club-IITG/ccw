@@ -3,7 +3,7 @@ import dbConnect from "@/lib/mongodb";
 import redis from "@/lib/redis";
 import User from "@/models/User";
 import DailyChallenge from "@/models/POTDDailyChallenge";
-import PotdSubmission from "@/models/PotdSubmission";
+import POTDSubmission from "@/models/POTDSubmission";
 import { logger } from "@/lib/utils";
 import { computePoints } from "@/lib/potd-utils";
 
@@ -41,7 +41,7 @@ async function waitForCFApi(): Promise<boolean> {
 }
 
 /**
- * Phase 2: For all PotdSubmissions with status=Pending for the challenge that
+ * Phase 2: For all POTDSubmissions with status=Pending for the challenge that
  * just ended (graceEnd <= now), fetch CF status and update each user atomically.
  * Skips any submission already marked Accepted.
  */
@@ -52,7 +52,7 @@ async function syncPendingSubmissions(challenge: any): Promise<void> {
   const graceEnd = challenge.graceEnd as Date;
   const now = new Date();
 
-  const pendingSubs = await PotdSubmission.find({
+  const pendingSubs = await POTDSubmission.find({
     challengeId: challenge._id,
     status: { $in: ["Pending"] },
   }).populate("userId", "codeforcesId cfVerified potdCurrentStreak");
@@ -66,7 +66,7 @@ async function syncPendingSubmissions(challenge: any): Promise<void> {
     if (!user || !user.cfVerified || !user.codeforcesId) {
       // Can't sync without verified handle — mark NotSolved if grace has passed
       if (now > graceEnd) {
-        await PotdSubmission.findByIdAndUpdate(sub._id, {
+        await POTDSubmission.findByIdAndUpdate(sub._id, {
           $set: { status: "NotSolved", lastCheckedAt: now },
         });
       }
@@ -113,7 +113,7 @@ async function syncPendingSubmissions(challenge: any): Promise<void> {
         );
       }
 
-      const prevSub = await PotdSubmission.findByIdAndUpdate(
+      const prevSub = await POTDSubmission.findByIdAndUpdate(
         sub._id,
         {
           $set: {
@@ -156,7 +156,7 @@ async function syncPendingSubmissions(challenge: any): Promise<void> {
  */
 async function resetStreaksForChallenge(challenge: any): Promise<void> {
   // Find users who solved this challenge (streak should NOT be reset)
-  const solvedUserIds = await PotdSubmission.find({
+  const solvedUserIds = await POTDSubmission.find({
     challengeId: challenge._id,
     status: "Accepted",
   }).distinct("userId");
@@ -182,7 +182,7 @@ async function resetStreaksForChallenge(challenge: any): Promise<void> {
  * This is after the grace window closes for the challenge whose windowStart
  * was 11:30 UTC the SAME day (grace ends at 12:29 UTC).
  */
-export async function syncPotdSubmissions(): Promise<void> {
+export async function syncPOTDSubmissions(): Promise<void> {
   logger.info("[potd-sync] Starting POTD submission sync...");
 
   await dbConnect();

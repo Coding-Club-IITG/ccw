@@ -9,10 +9,10 @@ import redis from "@/lib/redis";
 import User from "@/models/User";
 import Problem from "@/models/POTDProblem";
 import DailyChallenge from "@/models/POTDDailyChallenge";
-import PotdSubmission from "@/models/PotdSubmission";
+import POTDSubmission from "@/models/POTDSubmission";
 
 // Ensure models are registered (prevents Next.js compiler from tree-shaking unused model imports)
-[User, Problem, DailyChallenge, PotdSubmission].forEach(
+[User, Problem, DailyChallenge, POTDSubmission].forEach(
   (m) => m && m.init && m.init(),
 );
 
@@ -64,7 +64,7 @@ export async function getTodayChallenge(): Promise<{
 
   if (!challenge) return { ok: false, error: "No active challenge" };
 
-  const sub = await PotdSubmission.findOne({
+  const sub = await POTDSubmission.findOne({
     userId: session.user.id,
     challengeId: challenge._id,
   });
@@ -177,7 +177,7 @@ export async function syncMySubmission(challengeId: string): Promise<{
     }
 
     // Check existing submission — don't downgrade Accepted
-    const existing = await PotdSubmission.findOne({ userId, challengeId });
+    const existing = await POTDSubmission.findOne({ userId, challengeId });
     if (existing?.status === "Accepted") {
       return {
         ok: true,
@@ -247,7 +247,7 @@ export async function syncMySubmission(challengeId: string): Promise<{
     }
 
     // Atomic upsert
-    const prevSub = await PotdSubmission.findOneAndUpdate(
+    const prevSub = await POTDSubmission.findOneAndUpdate(
       { userId, challengeId },
       {
         $set: {
@@ -321,7 +321,7 @@ export async function getMyPotdStats(): Promise<{
   const userDoc = await User.findById(session.user.id);
   if (!userDoc) return { ok: false, error: "User not found" };
 
-  const subs = await PotdSubmission.find({
+  const subs = await POTDSubmission.find({
     userId: session.user.id,
     status: { $in: ["Accepted", "Late"] },
   })
@@ -385,7 +385,7 @@ export async function getPotdLeaderboard(
     since = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
   }
 
-  const rows = await PotdSubmission.aggregate([
+  const rows = await POTDSubmission.aggregate([
     {
       $match: {
         status: "Accepted",
@@ -456,7 +456,7 @@ export async function getPastProblems(
     .populate("problem");
 
   const challengeIds = challenges.map((c: any) => c._id);
-  const counts = await PotdSubmission.aggregate([
+  const counts = await POTDSubmission.aggregate([
     {
       $match: {
         challengeId: { $in: challengeIds },
