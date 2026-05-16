@@ -1,5 +1,7 @@
 import styles from "../Lists.module.scss";
 import { getPastProblems } from "@/lib/actions/potd";
+import { DIFFICULTY_COLORS } from "@/lib/constants";
+import { windowStartToISTDateStr } from "@/lib/potd-utils";
 
 export default async function PastProblemsPage() {
   const result = await getPastProblems(30);
@@ -24,15 +26,15 @@ export default async function PastProblemsPage() {
                 <th>Date</th>
                 <th>Problem</th>
                 <th>Rating</th>
-                <th>Tags</th>
+                <th>Difficulty</th>
                 <th>Solved By</th>
               </tr>
             </thead>
             <tbody>
               {pastProblems.map((p) => {
-                const istMs =
-                  new Date(p.windowStart).getTime() + 5.5 * 60 * 60 * 1000;
-                const dateLabel = new Date(istMs).toLocaleDateString("en-IN", {
+                const dateLabel = new Date(
+                  windowStartToISTDateStr(p.windowStart) + "T00:00:00Z",
+                ).toLocaleDateString("en-IN", {
                   day: "2-digit",
                   month: "short",
                   year: "numeric",
@@ -62,11 +64,19 @@ export default async function PastProblemsPage() {
                       </span>
                     </td>
                     <td>
-                      <div className={styles.tags}>
-                        {p.problem.tags.map((t: string) => (
-                          <span key={t}>{t}</span>
-                        ))}
-                      </div>
+                      <span
+                        style={{
+                          fontSize: "0.8rem",
+                          fontWeight: 600,
+                          color: DIFFICULTY_COLORS[p.difficulty],
+                          padding: "2px 8px",
+                          borderRadius: "999px",
+                          border: `1px solid ${DIFFICULTY_COLORS[p.difficulty]}`,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {p.difficulty}
+                      </span>
                     </td>
                     <td className={styles.boldText}>{p.solvedBy}</td>
                   </tr>

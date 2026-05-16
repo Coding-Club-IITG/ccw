@@ -17,7 +17,13 @@ import POTDSubmission from "@/models/POTDSubmission";
 
 import { logger } from "@/lib/utils";
 import { canSetPOTD } from "@/lib/roles";
-import { computeWindowTimes, computePoints } from "@/lib/potd-utils";
+import { IST_OFFSET_MS } from "@/lib/constants";
+import {
+  computeWindowTimes,
+  getTodayISTDateStr,
+  computePoints,
+  windowStartToISTDateStr,
+} from "@/lib/potd-utils";
 
 async function checkAdmin() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -27,21 +33,23 @@ async function checkAdmin() {
   return session;
 }
 
-// ─── Set Daily Problem ────────────────────────────────────────────────────────
+// Set Daily Problem ────────────────────────────────────────────────────────
 
 /**
  * Fetch problem metadata from CF API, upsert Problem doc, create DailyChallenge.
- * `dateStr` = YYYY-MM-DD in IST.
+ * `dateStr` = YYYY-MM-DD in IST. `difficulty` = Easy | Medium | Hard.
+ * Same-day scheduling is allowed; the challenge window ends at EOD IST.
  */
 export async function setDailyProblem(
   dateStr: string,
   cfContestId: number,
   cfIndex: string,
+  difficulty: "Easy" | "Medium" | "Hard",
 ): Promise<{ ok: boolean; error?: string }> {
   const session = await checkAdmin();
   if (!session) return { ok: false, error: "Forbidden" };
 
-  if (!dateStr || !cfContestId || !cfIndex) {
+  if (!dateStr || !cfContestId || !cfIndex || !difficulty) {
     return { ok: false, error: "Missing required fields" };
   }
 
@@ -50,17 +58,35 @@ export async function setDailyProblem(
     return { ok: false, error: "Invalid date format (YYYY-MM-DD)" };
   }
 
+  // Allow today and up to 10 days ahead; reject past dates
+  const todayIST = getTodayISTDateStr();
+  if (dateStr < todayIST) {
+    return { ok: false, error: "Cannot schedule problems for past dates" };
+  }
+
+  const tenDaysAhead = (() => {
+    const d = new Date(Date.now() + IST_OFFSET_MS);
+    d.setUTCDate(d.getUTCDate() + 10);
+    return d.toISOString().slice(0, 10);
+  })();
+  if (dateStr > tenDaysAhead) {
+    return { ok: false, error: "Cannot schedule more than 10 days in advance" };
+  }
+
   await dbConnect();
 
   const { windowStart, windowEnd, graceEnd } = computeWindowTimes(dateStr);
 
-  // Check if this slot is already taken
-  const existing = await DailyChallenge.findOne({ windowStart });
+  // Check if this (date, difficulty) slot is already taken
+  const existing = await DailyChallenge.findOne({ windowStart, difficulty });
   if (existing) {
-    return { ok: false, error: "A problem is already set for this date" };
+    return {
+      ok: false,
+      error: `A ${difficulty} problem is already set for this date`,
+    };
   }
 
-  // Check if this problem has already been used on a previous day
+  // Check if this problem has already been used on any previous day
   const existingProblem = await Problem.findOne({
     cfContestId,
     cfIndex: cfIndex.toUpperCase(),
@@ -71,11 +97,7 @@ export async function setDailyProblem(
       problem: existingProblem._id,
     });
     if (previousUsage) {
-      const usedDate = new Date(
-        previousUsage.windowStart.getTime() + 5.5 * 60 * 60 * 1000,
-      )
-        .toISOString()
-        .slice(0, 10);
+      const usedDate = windowStartToISTDateStr(previousUsage.windowStart);
       return {
         ok: false,
         error: `This problem was already used for a POTD on ${usedDate}`,
@@ -83,7 +105,7 @@ export async function setDailyProblem(
     }
   }
 
-  // Fetch CF problem metadata via problemset.problems (cached 24h)
+  // Fetch CF problem metadata (cached 24h)
   let problemName: string;
   let problemRating: number;
   let problemTags: string[];
@@ -141,21 +163,30 @@ export async function setDailyProblem(
     windowEnd,
     graceEnd,
     problem: problemDoc._id,
+    difficulty,
     setBy: session.user.id,
   });
 
-  logger.info("[setDailyProblem] Created", { dateStr, cfContestId, cfIndex });
+  logger.info("[setDailyProblem] Created", {
+    dateStr,
+    cfContestId,
+    cfIndex,
+    difficulty,
+  });
   revalidatePath("/internal/potd");
 
   return { ok: true };
 }
 
-// ─── Get Scheduled Challenges ─────────────────────────────────────────────────
+// Get Scheduled Challenges
 
 export type ScheduledChallenge = {
   id: string;
   dateStr: string; // YYYY-MM-DD in IST
   windowStart: string;
+  windowEnd: string;
+  difficulty: "Easy" | "Medium" | "Hard";
+  isToday: boolean;
   problem: {
     cfContestId: number;
     cfIndex: string;
@@ -174,23 +205,30 @@ export async function getScheduledChallenges(): Promise<{
 
   await dbConnect();
 
-  const now = new Date();
-  const next8Days = new Date(now.getTime() + 8 * 24 * 60 * 60 * 1000);
+  const todayIST = getTodayISTDateStr();
+  const { windowStart: todayWindowStart } = computeWindowTimes(todayIST);
+  // Show today + up to 10 days ahead
+  const futureLimit = new Date(
+    todayWindowStart.getTime() + 11 * 24 * 60 * 60 * 1000,
+  );
 
   const challenges = await DailyChallenge.find({
-    windowStart: { $gte: now, $lte: next8Days },
+    windowStart: { $gte: todayWindowStart, $lte: futureLimit },
   })
-    .sort({ windowStart: 1 })
+    .sort({ windowStart: 1, difficulty: 1 })
     .populate("problem");
 
   const data: ScheduledChallenge[] = challenges.map((c: any) => {
     const p = c.problem as any;
-    const istMs = c.windowStart.getTime() + 5.5 * 60 * 60 * 1000;
-    const istDate = new Date(istMs).toISOString().slice(0, 10);
+
+    const istDate = windowStartToISTDateStr(c.windowStart);
     return {
       id: c._id.toString(),
       dateStr: istDate,
       windowStart: c.windowStart.toISOString(),
+      windowEnd: c.windowEnd.toISOString(),
+      difficulty: c.difficulty,
+      isToday: istDate === todayIST,
       problem: {
         cfContestId: p.cfContestId,
         cfIndex: p.cfIndex,
@@ -203,8 +241,12 @@ export async function getScheduledChallenges(): Promise<{
   return { ok: true, data };
 }
 
-// ─── Delete Scheduled Challenge ───────────────────────────────────────────────
+// Delete Scheduled Challenge
 
+/**
+ * Deletes a scheduled challenge. Allows deleting today's challenge (for editing
+ * purposes) as long as the window hasn't fully ended yet.
+ */
 export async function deleteScheduledChallenge(
   challengeId: string,
 ): Promise<{ ok: boolean; error?: string }> {
@@ -217,10 +259,11 @@ export async function deleteScheduledChallenge(
   if (!challenge) return { ok: false, error: "Challenge not found" };
 
   const now = new Date();
-  if (challenge.windowStart <= now) {
+  // Only block deletion after the window has fully ended (including grace)
+  if (challenge.graceEnd < now) {
     return {
       ok: false,
-      error: "Cannot delete a challenge that has already started",
+      error: "Cannot delete a challenge that has already ended",
     };
   }
 
@@ -230,7 +273,7 @@ export async function deleteScheduledChallenge(
   return { ok: true };
 }
 
-// ─── Get Pending Submissions ──────────────────────────────────────────────────
+// Get Pending Submissions
 
 export type PendingSubmissionEntry = {
   submissionId: string;
@@ -271,7 +314,7 @@ export async function getPendingSubmissions(challengeId: string): Promise<{
   return { ok: true, data };
 }
 
-// ─── Force Sync User ──────────────────────────────────────────────────────────
+// Force Sync User
 
 /**
  * Admin: force a CF sync for a specific user/challenge.

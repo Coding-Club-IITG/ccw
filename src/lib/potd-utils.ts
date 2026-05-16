@@ -1,12 +1,13 @@
 /**
- * Pure utility helpers for POTD window calculations and scoring.
- * NOT a server action file — no "use server" directive.
- * Safe to import from both server actions and background jobs.
+ * Pure utility helpers for POTD window calculations, scoring, and date formatting.
  */
+
+import { IST_OFFSET_MS } from "./constants";
 
 /**
  * Given YYYY-MM-DD string (IST date), compute the three window timestamps.
- * Window: 5:00 PM IST (11:30 UTC) on `dateStr` → 5:59 PM IST next day (12:29 UTC)
+ * Window: 12:00 AM IST (18:30 UTC prev day) -> 11:59 PM IST (18:29 UTC same day)
+ * Grace:  11:59 PM IST -> 1:00 AM IST next day (19:29:59 UTC same day)
  */
 export function computeWindowTimes(dateStr: string): {
   windowStart: Date;
@@ -14,33 +15,75 @@ export function computeWindowTimes(dateStr: string): {
   graceEnd: Date;
 } {
   const [year, month, day] = dateStr.split("-").map(Number);
-  // windowStart: challenge date at 11:30:00 UTC (= 5:00 PM IST)
-  const windowStart = new Date(Date.UTC(year, month - 1, day, 11, 30, 0, 0));
-  // windowEnd: next day at 11:29:59 UTC (= 4:59:59 PM IST)
-  const windowEnd = new Date(
-    Date.UTC(year, month - 1, day + 1, 11, 29, 59, 999),
+  // windowStart: 12:00 AM IST = 18:30:00 UTC on the *previous* calendar day
+  const windowStart = new Date(
+    Date.UTC(year, month - 1, day - 1, 18, 30, 0, 0),
   );
-  // graceEnd: next day at 12:29:59 UTC (= 5:59:59 PM IST)
-  const graceEnd = new Date(
-    Date.UTC(year, month - 1, day + 1, 12, 29, 59, 999),
-  );
+  // windowEnd: 11:59:59 PM IST = 18:29:59 UTC on the challenge date
+  const windowEnd = new Date(Date.UTC(year, month - 1, day, 18, 29, 59, 999));
+  // graceEnd: 1:00 AM IST next day = 19:29:59 UTC on the challenge date (1h grace)
+  const graceEnd = new Date(Date.UTC(year, month - 1, day, 19, 29, 59, 999));
   return { windowStart, windowEnd, graceEnd };
 }
 
 /**
  * Returns the current IST date string (YYYY-MM-DD).
- * Before 5:00 PM IST → yesterday's challenge; at/after 5:00 PM IST → today's.
+ * The challenge for a given IST date runs from midnight to midnight IST,
+ * so the current date is simply the IST wall-clock date.
  */
 export function getTodayISTDateStr(): string {
-  const istMs = Date.now() + 5.5 * 60 * 60 * 1000;
-  return new Date(istMs).toISOString().slice(0, 10);
+  return new Date(Date.now() + IST_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+/**
+ * Converts a `windowStart` timestamp (18:30 UTC of the *previous* calendar day)
+ * to the corresponding IST date string (YYYY-MM-DD).
+ *
+ * windowStart sits 5.5 h before IST midnight of the challenge date, so adding
+ * IST_OFFSET_MS + 24 h lands us at noon IST on the challenge date — safely
+ * within the correct calendar day regardless of DST edge cases.
+ */
+export function windowStartToISTDateStr(windowStart: Date | string): string {
+  const ms =
+    new Date(windowStart).getTime() + IST_OFFSET_MS + 24 * 60 * 60 * 1000;
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+/**
+ * Returns today + the next 10 days as IST date strings (YYYY-MM-DD),
+ * giving the full scheduling horizon for upcoming POTD problems.
+ */
+export function getAvailableDates(): string[] {
+  const dates: string[] = [];
+  for (let i = 0; i <= 10; i++) {
+    const istDate = new Date(Date.now() + IST_OFFSET_MS);
+    istDate.setUTCDate(istDate.getUTCDate() + i);
+    dates.push(istDate.toISOString().slice(0, 10));
+  }
+  return dates;
+}
+
+/**
+ * Formats a YYYY-MM-DD date string (interpreted as UTC midnight) into a
+ * human-readable label for display in POTD UI components.
+ */
+export function formatDate(
+  dateStr: string,
+  weekday?: "short" | "long",
+): string {
+  return new Date(dateStr + "T00:00:00Z").toLocaleDateString("en-US", {
+    weekday: weekday ?? undefined,
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
 }
 
 /**
  * PRD scoring formula:
  *   Points = round((rating / 10) × (1 - 0.5 × hoursElapsed/24) × (1 + 0.05 × min(streak, 10)))
  * hoursElapsed = (solvedAt - windowStart) / 3_600_000
- * Grace window solves (solvedAt > windowEnd) → 0 points.
+ * Grace window solves (solvedAt > windowEnd) -> 0 points.
  */
 export function computePoints(
   rating: number,

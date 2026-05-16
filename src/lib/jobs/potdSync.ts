@@ -58,7 +58,7 @@ async function syncPendingSubmissions(challenge: any): Promise<void> {
   }).populate("userId", "codeforcesId cfVerified potdCurrentStreak");
 
   logger.info(
-    `[potd-sync] Syncing ${pendingSubs.length} pending submissions for challenge ${challenge._id}`,
+    `[potd-sync] Syncing ${pendingSubs.length} pending submissions for challenge ${challenge._id} (${challenge.difficulty})`,
   );
 
   for (const sub of pendingSubs) {
@@ -151,13 +151,19 @@ async function syncPendingSubmissions(challenge: any): Promise<void> {
 }
 
 /**
- * Phase 3: Streak reset — for all users who had an active streak but did NOT
- * solve the challenge that just ended, reset their currentStreak to 0.
+ * Phase 3: Streak reset — for users who did NOT solve ANY challenge today,
+ * reset their current streak. A user maintains their streak if they solved
+ * at least one challenge from today's set.
  */
-async function resetStreaksForChallenge(challenge: any): Promise<void> {
-  // Find users who solved this challenge (streak should NOT be reset)
+async function resetStreaksForDay(challenges: any[]): Promise<void> {
+  if (challenges.length === 0) return;
+
+  // Collect all challenge IDs for the day
+  const challengeIds = challenges.map((c: any) => c._id);
+
+  // Find users who solved at least one challenge today
   const solvedUserIds = await POTDSubmission.find({
-    challengeId: challenge._id,
+    challengeId: { $in: challengeIds },
     status: "Accepted",
   }).distinct("userId");
 
@@ -172,15 +178,13 @@ async function resetStreaksForChallenge(challenge: any): Promise<void> {
 
   if (result.modifiedCount > 0) {
     logger.info(
-      `[potd-sync] Reset streaks for ${result.modifiedCount} users who missed the challenge`,
+      `[potd-sync] Reset streaks for ${result.modifiedCount} users who missed today's challenges`,
     );
   }
 }
 
 /**
- * Main cron handler — called by Agenda at 12:30 UTC (6:00 PM IST) daily.
- * This is after the grace window closes for the challenge whose windowStart
- * was 11:30 UTC the SAME day (grace ends at 12:29 UTC).
+ * Main cron handler
  */
 export async function syncPOTDSubmissions(): Promise<void> {
   logger.info("[potd-sync] Starting POTD submission sync...");
@@ -192,24 +196,31 @@ export async function syncPOTDSubmissions(): Promise<void> {
   const buffer = new Date(now.getTime() + 2 * 60 * 1000); // 2-minute buffer
   const lookback = new Date(now.getTime() - 60 * 60 * 1000); // 1 hour ago
 
-  const challenge = await DailyChallenge.findOne({
+  // Find ALL challenges whose grace window just closed
+  const challenges = await DailyChallenge.find({
     graceEnd: { $gte: lookback, $lte: buffer },
   }).populate("problem");
 
-  if (!challenge) {
-    logger.info("[potd-sync] No challenge found in grace-end window, skipping");
+  if (challenges.length === 0) {
+    logger.info(
+      "[potd-sync] No challenges found in grace-end window, skipping",
+    );
     return;
   }
 
-  // Acquire cron lock — prevents manual syncs during cron run
-  // Increased to 60 minutes to account for CF rate limits with potentially hundreds of users
-  const cronLockKey = `potd:cron:lock:${challenge._id}`;
+  logger.info(`[potd-sync] Found ${challenges.length} challenge(s) to sync`);
+
+  // Use the first challenge's ID as the cron lock key (they all share graceEnd)
+  const cronLockKey = `potd:cron:lock:day:${challenges[0].windowStart.toISOString().slice(0, 10)}`;
   const locked = await redis.set(cronLockKey, "1", { NX: true, EX: 20 * 60 });
   if (!locked) {
-    logger.warn(
-      "[potd-sync] Cron already running for this challenge, skipping",
-    );
+    logger.warn("[potd-sync] Cron already running for today, skipping");
     return;
+  }
+
+  // Also set per-challenge lock keys so manual syncs back off
+  for (const c of challenges) {
+    await redis.set(`potd:cron:lock:${c._id}`, "1", { EX: 20 * 60 });
   }
 
   try {
@@ -222,14 +233,19 @@ export async function syncPOTDSubmissions(): Promise<void> {
       return;
     }
 
-    // Phase 2: Sync pending submissions
-    await syncPendingSubmissions(challenge);
+    // Phase 2: Sync pending submissions for each challenge
+    for (const challenge of challenges) {
+      await syncPendingSubmissions(challenge);
+    }
 
-    // Phase 3: Streak reset for non-solvers
-    await resetStreaksForChallenge(challenge);
+    // Phase 3: Streak reset — user saved if they solved ANY challenge today
+    await resetStreaksForDay(challenges);
 
     logger.info("[potd-sync] POTD sync completed successfully");
   } finally {
     await redis.del(cronLockKey);
+    for (const c of challenges) {
+      await redis.del(`potd:cron:lock:${c._id}`);
+    }
   }
 }

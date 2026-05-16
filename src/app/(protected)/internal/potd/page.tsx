@@ -18,7 +18,7 @@ export default async function PotdPage() {
       <h1 style={{ marginBottom: "2rem" }}>Daily Challenge</h1>
       <DailyChallengeClient
         cfVerified={cfVerified}
-        initialChallenge={challengeResult.data ?? null}
+        initialData={challengeResult.data ?? null}
       />
     </div>
   );

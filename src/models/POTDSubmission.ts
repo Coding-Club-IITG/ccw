@@ -13,10 +13,10 @@ const POTDSubmissionSchema = new mongoose.Schema(
       required: true,
     },
     // Lifecycle:
-    //   Pending   → not yet verified by manual sync or cron
-    //   Accepted  → solved within main OR grace window (points > 0, streak++)
-    //   Late      → solved after graceEnd (0 points, streak unaffected)
-    //   NotSolved → cron confirmed no solve after grace + health-check cycle
+    //   Pending   -> not yet verified by manual sync or cron
+    //   Accepted  -> solved within main OR grace window (points > 0, streak++)
+    //   Late      -> solved after graceEnd (0 points, streak unaffected)
+    //   NotSolved -> cron confirmed no solve after grace + health-check cycle
     status: {
       type: String,
       enum: ["Pending", "Accepted", "Late", "NotSolved"],

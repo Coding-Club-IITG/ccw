@@ -5,55 +5,56 @@ import Link from "next/link";
 import styles from "./Potd.module.scss";
 import {
   syncMySubmission,
-  type TodayChallengeResult,
+  type TodayChallengeData,
+  type ChallengeEntry,
 } from "@/lib/actions/potd";
-import { IconCheckCircle, IconInfoCircle } from "@/components/Icons";
+import { IconCheckCircle, IconInfoCircle, IconStar } from "@/components/Icons";
+import { DIFFICULTY_COLORS, IST_OFFSET_MS } from "@/lib/constants";
 
 type Props = {
   cfVerified: boolean;
-  initialChallenge: TodayChallengeResult | null;
+  initialData: TodayChallengeData | null;
 };
 
 export default function DailyChallengeClient({
   cfVerified,
-  initialChallenge,
+  initialData,
 }: Props) {
   const [timeLeft, setTimeLeft] = useState<string>("");
   const [hoursLeft, setHoursLeft] = useState<number>(0);
-  const [syncing, setSyncing] = useState(false);
-  const [cooldownLeft, setCooldownLeft] = useState(0);
   const [isClient, setIsClient] = useState(false);
-  const [challenge, setChallenge] = useState(initialChallenge);
-  const [syncError, setSyncError] = useState<string | null>(null);
+  const [data, setData] = useState(initialData);
 
-  // Countdown to windowEnd (main window close) or graceEnd
+  // Per-challenge sync state
+  const [syncing, setSyncing] = useState<Record<string, boolean>>({});
+  const [cooldowns, setCooldowns] = useState<Record<string, number>>({});
+  const [syncErrors, setSyncErrors] = useState<Record<string, string>>({});
+
+  // Countdown to windowEnd / graceEnd (shared across all challenges for the day)
   useEffect(() => {
     setIsClient(true);
 
     const getDeadline = () => {
-      if (challenge) {
-        const windowEnd = new Date(challenge.windowEnd);
-        const graceEnd = new Date(challenge.graceEnd);
+      if (data) {
+        const windowEnd = new Date(data.windowEnd);
+        const graceEnd = new Date(data.graceEnd);
         const now = new Date();
         if (now <= windowEnd) return windowEnd;
         if (now <= graceEnd) return graceEnd;
-        return graceEnd; // past grace — show 0
+        return graceEnd;
       }
-      // Fallback: next 5:00 PM IST
-      const nowMs = Date.now();
-      const istMs = nowMs + 5.5 * 60 * 60 * 1000;
-      const istDate = new Date(istMs);
-      const nextWindowEnd = new Date(
+      // Fallback: EOD IST (18:29:59 UTC = 11:59:59 PM IST)
+      const istDate = new Date(Date.now() + IST_OFFSET_MS);
+      return new Date(
         Date.UTC(
           istDate.getUTCFullYear(),
           istDate.getUTCMonth(),
-          istDate.getUTCDate() + 1,
-          11,
+          istDate.getUTCDate(),
+          18,
           29,
           59,
         ),
       );
-      return nextWindowEnd;
     };
 
     const calculateTimeLeft = () => {
@@ -67,47 +68,55 @@ export default function DailyChallengeClient({
     };
 
     setTimeLeft(calculateTimeLeft());
-    const timer = setInterval(() => {
-      setTimeLeft(calculateTimeLeft());
-    }, 1000);
-
+    const timer = setInterval(() => setTimeLeft(calculateTimeLeft()), 1000);
     return () => clearInterval(timer);
-  }, [challenge]);
+  }, [data]);
 
-  // Handle local cooldown
+  // Per-challenge cooldown timers
   useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (cooldownLeft > 0) {
-      timer = setInterval(() => {
-        setCooldownLeft((prev) => prev - 1);
-      }, 1000);
-    }
-    return () => clearInterval(timer);
-  }, [cooldownLeft]);
+    const intervals: NodeJS.Timeout[] = [];
+    Object.entries(cooldowns).forEach(([id, left]) => {
+      if (left > 0) {
+        const t = setInterval(() => {
+          setCooldowns((prev) => {
+            const next = { ...prev, [id]: Math.max(0, (prev[id] ?? 0) - 1) };
+            return next;
+          });
+        }, 1000);
+        intervals.push(t);
+      }
+    });
+    return () => intervals.forEach(clearInterval);
+  }, [cooldowns]);
 
-  const handleSync = async () => {
-    if (!challenge) return;
-    setSyncing(true);
-    setSyncError(null);
+  const handleSync = async (challengeId: string) => {
+    setSyncing((p) => ({ ...p, [challengeId]: true }));
+    setSyncErrors((p) => ({ ...p, [challengeId]: "" }));
+
     try {
-      const result = await syncMySubmission(challenge.challengeId);
-
-      // Update local cooldown
-      setCooldownLeft(60);
+      const result = await syncMySubmission(challengeId);
+      setCooldowns((p) => ({ ...p, [challengeId]: 60 }));
 
       if (result.ok) {
-        setChallenge((prev) =>
-          prev
-            ? {
-                ...prev,
-                mySubmission: {
-                  status: result.status as any,
-                  solvedAt: null,
-                  pointsAwarded: result.pointsAwarded ?? 0,
-                },
-              }
-            : prev,
-        );
+        setData((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            challenges: prev.challenges.map((c) =>
+              c.challengeId === challengeId
+                ? {
+                    ...c,
+                    mySubmission: {
+                      status: result.status as any,
+                      solvedAt: null,
+                      pointsAwarded: result.pointsAwarded ?? 0,
+                    },
+                  }
+                : c,
+            ),
+          };
+        });
+
         if (result.status === "Accepted") {
           alert(
             result.pointsAwarded && result.pointsAwarded > 0
@@ -120,56 +129,43 @@ export default function DailyChallengeClient({
           alert("The window has closed and no solve was detected.");
         }
       } else {
-        setSyncError(result.error ?? "Sync failed");
+        setSyncErrors((p) => ({
+          ...p,
+          [challengeId]: result.error ?? "Sync failed",
+        }));
       }
     } catch {
-      setSyncError("An unexpected error occurred");
+      setSyncErrors((p) => ({
+        ...p,
+        [challengeId]: "An unexpected error occurred",
+      }));
     } finally {
-      setSyncing(false);
+      setSyncing((p) => ({ ...p, [challengeId]: false }));
     }
   };
 
-  const myStatus = challenge?.mySubmission?.status ?? "none";
-  const alreadyAccepted = myStatus === "Accepted";
   const isInGrace =
-    challenge &&
+    data &&
     isClient &&
-    new Date() > new Date(challenge.windowEnd) &&
-    new Date() <= new Date(challenge.graceEnd);
+    new Date() > new Date(data.windowEnd) &&
+    new Date() <= new Date(data.graceEnd);
 
-  if (!challenge) {
+  if (!data || data.challenges.length === 0) {
     return (
       <div className={styles.container}>
         <div className={styles.card}>
           <p style={{ color: "#666", textAlign: "center", padding: "2rem 0" }}>
-            No challenge active right now. Check back at 5:00 PM IST!
+            No challenge scheduled for today. Check back later!
           </p>
         </div>
       </div>
     );
   }
 
-  const { problem } = challenge;
-
   return (
     <div className={styles.container}>
+      {/* Shared timer card */}
       <div className={styles.card}>
-        <div className={styles.header}>
-          <div>
-            <span className={styles.problemId}>
-              Codeforces {problem.cfContestId}-{problem.cfIndex}
-            </span>
-            <h1 className={styles.title}>{problem.name}</h1>
-          </div>
-          <div className={styles.rating}>{problem.rating || "Unrated"}</div>
-        </div>
-
-        <div className={styles.tags}>
-          {problem.tags.map((t) => (
-            <span key={t}>{t}</span>
-          ))}
-        </div>
-
         <div className={styles.stats}>
           <div className={styles.stat}>
             <span className={styles.label}>
@@ -191,102 +187,32 @@ export default function DailyChallengeClient({
             </span>
           </div>
           <div className={styles.stat}>
-            <span className={styles.label}>Your Status</span>
-            <span className={styles.value}>
-              {alreadyAccepted ? (
-                <>
-                  <IconCheckCircle
-                    width="20"
-                    height="20"
-                    style={{ marginRight: "8px", color: "#10b981" }}
-                  />
-                  Solved ({challenge.mySubmission.pointsAwarded} pts)
-                </>
-              ) : myStatus === "Pending" ? (
-                "Not synced yet"
-              ) : myStatus === "NotSolved" ? (
-                "Not solved"
-              ) : (
-                "—"
-              )}
-            </span>
+            <span className={styles.label}>Today&apos;s Problems</span>
+            <span className={styles.value}>{data.challenges.length}</span>
           </div>
         </div>
+      </div>
 
-        {syncError && (
-          <p
-            style={{
-              color: "#e11d48",
-              marginBottom: "1rem",
-              fontSize: "0.9rem",
-            }}
-          >
-            {syncError}
-          </p>
-        )}
+      {/* Problem Cards */}
+      {data.challenges.map((entry) => (
+        <ProblemCard
+          key={entry.challengeId}
+          entry={entry}
+          cfVerified={cfVerified}
+          isSyncing={!!syncing[entry.challengeId]}
+          cooldown={cooldowns[entry.challengeId] ?? 0}
+          syncError={syncErrors[entry.challengeId] ?? null}
+          onSync={() => handleSync(entry.challengeId)}
+        />
+      ))}
 
-        <div className={styles.actionArea}>
-          {cfVerified ? (
-            <>
-              <a
-                href={`https://codeforces.com/problemset/problem/${problem.cfContestId}/${problem.cfIndex}`}
-                target="_blank"
-                rel="noreferrer"
-                className={styles.syncBtn}
-                style={{ textAlign: "center", textDecoration: "none" }}
-              >
-                Open Problem
-              </a>
-              {!alreadyAccepted && (
-                <button
-                  className={styles.syncBtn}
-                  onClick={handleSync}
-                  disabled={syncing || cooldownLeft > 0}
-                  style={
-                    cooldownLeft > 0
-                      ? { opacity: 0.5, cursor: "not-allowed" }
-                      : undefined
-                  }
-                >
-                  {syncing
-                    ? "Syncing..."
-                    : cooldownLeft > 0
-                      ? `Wait ${cooldownLeft}s`
-                      : "Sync My Answer"}
-                </button>
-              )}
-            </>
-          ) : (
-            <div className={styles.verifyPrompt}>
-              <p>
-                Your Codeforces ID is unverified. Please verify it to
-                participate.
-              </p>
-              <Link href="/internal/profile" className={styles.verifyBtn}>
-                Verify ID
-              </Link>
-            </div>
-          )}
-        </div>
-
+      {/* Scoring Info */}
+      <div className={styles.card}>
         <div className={styles.pointsInfo}>
           <div className={styles.pointsHeader}>
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-            </svg>
+            <IconStar width="18" height="18" />
             Points Calculation
           </div>
-
           <div className={styles.pointsGrid}>
             <div className={styles.pointsItem}>
               <span>Base Points</span>
@@ -301,15 +227,146 @@ export default function DailyChallengeClient({
               <span>+5% per day (max 10 days / 50%)</span>
             </div>
           </div>
-
           <div className={styles.graceNote}>
             <IconInfoCircle width="16" height="16" />
             <span>
-              Solves in the grace window (5:00 PM - 6:00 PM next day) yield 0
-              points but save your streak.
+              Solves in the grace window (after midnight – before 1:00 AM IST)
+              yield 0 points but save your streak.
             </span>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Problem card
+
+function ProblemCard({
+  entry,
+  cfVerified,
+  isSyncing,
+  cooldown,
+  syncError,
+  onSync,
+}: {
+  entry: ChallengeEntry;
+  cfVerified: boolean;
+  isSyncing: boolean;
+  cooldown: number;
+  syncError: string | null;
+  onSync: () => void;
+}) {
+  const { problem, mySubmission, difficulty } = entry;
+  const myStatus = mySubmission?.status ?? "none";
+  const alreadyAccepted = myStatus === "Accepted";
+
+  return (
+    <div className={styles.card}>
+      <div className={styles.header}>
+        <div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              marginBottom: "0.25rem",
+            }}
+          >
+            <span className={styles.problemId}>
+              Codeforces {problem.cfContestId}-{problem.cfIndex}
+            </span>
+            <span
+              style={{
+                fontSize: "0.75rem",
+                fontWeight: 700,
+                color: DIFFICULTY_COLORS[difficulty],
+                padding: "1px 8px",
+                borderRadius: "999px",
+                border: `1px solid ${DIFFICULTY_COLORS[difficulty]}`,
+              }}
+            >
+              {difficulty}
+            </span>
+          </div>
+          <h2 className={styles.title}>{problem.name}</h2>
+        </div>
+        <div className={styles.rating}>{problem.rating || "Unrated"}</div>
+      </div>
+
+      <div className={styles.stats}>
+        <div className={styles.stat}>
+          <span className={styles.label}>Your Status</span>
+          <span className={styles.value}>
+            {alreadyAccepted ? (
+              <>
+                <IconCheckCircle
+                  width="20"
+                  height="20"
+                  style={{ marginRight: "8px", color: "#10b981" }}
+                />
+                Solved ({mySubmission.pointsAwarded} pts)
+              </>
+            ) : myStatus === "Pending" ? (
+              "Not synced yet"
+            ) : myStatus === "NotSolved" ? (
+              "Not solved"
+            ) : (
+              "—"
+            )}
+          </span>
+        </div>
+      </div>
+
+      {syncError && (
+        <p
+          style={{ color: "#e11d48", marginBottom: "1rem", fontSize: "0.9rem" }}
+        >
+          {syncError}
+        </p>
+      )}
+
+      <div className={styles.actionArea}>
+        {cfVerified ? (
+          <>
+            <a
+              href={`https://codeforces.com/problemset/problem/${problem.cfContestId}/${problem.cfIndex}`}
+              target="_blank"
+              rel="noreferrer"
+              className={styles.syncBtn}
+              style={{ textAlign: "center", textDecoration: "none" }}
+            >
+              Open Problem
+            </a>
+            {!alreadyAccepted && (
+              <button
+                className={styles.syncBtn}
+                onClick={onSync}
+                disabled={isSyncing || cooldown > 0}
+                style={
+                  cooldown > 0
+                    ? { opacity: 0.5, cursor: "not-allowed" }
+                    : undefined
+                }
+              >
+                {isSyncing
+                  ? "Syncing..."
+                  : cooldown > 0
+                    ? `Wait ${cooldown}s`
+                    : "Sync My Answer"}
+              </button>
+            )}
+          </>
+        ) : (
+          <div className={styles.verifyPrompt}>
+            <p>
+              Your Codeforces ID is unverified. Please verify it to participate.
+            </p>
+            <Link href="/internal/profile" className={styles.verifyBtn}>
+              Verify ID
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );

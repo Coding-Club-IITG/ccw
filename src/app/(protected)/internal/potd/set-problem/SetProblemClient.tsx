@@ -9,34 +9,34 @@ import {
   type ScheduledChallenge,
 } from "@/lib/actions/admin/potd";
 import { IconTrash } from "@/components/Icons";
+import { DIFFICULTIES, DIFFICULTY_COLORS } from "@/lib/constants";
+import {
+  formatDate,
+  getAvailableDates,
+  getTodayISTDateStr,
+} from "@/lib/potd-utils";
 
 type FormData = {
   date: string;
+  difficulty: "Easy" | "Medium" | "Hard";
   problemId: string;
 };
 
-const getNext7Days = (): string[] => {
-  const dates: string[] = [];
-  for (let i = 1; i <= 7; i++) {
-    const nowMs = Date.now() + 5.5 * 60 * 60 * 1000; // shift to IST
-    const istDate = new Date(nowMs);
-    istDate.setUTCDate(istDate.getUTCDate() + i);
-    dates.push(istDate.toISOString().slice(0, 10));
-  }
-  return dates;
-};
-
 export default function SetProblemClient() {
-  const availableDates = getNext7Days();
+  const availableDates = getAvailableDates();
+  const todayIST = getTodayISTDateStr();
+
   const [problems, setProblems] = useState<ScheduledChallenge[]>([]);
   const [loadingInitial, setLoadingInitial] = useState(true);
-  const [isEditing, setIsEditing] = useState<string | null>(null);
+  const [isAdding, setIsAdding] = useState(false);
   const [formData, setFormData] = useState<FormData>({
     date: "",
+    difficulty: "Easy",
     problemId: "",
   });
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchScheduled();
@@ -54,24 +54,38 @@ export default function SetProblemClient() {
     }
   }
 
+  // Returns which difficulties are already taken for a date
+  const takenDifficulties = (dateStr: string) =>
+    new Set(
+      problems.filter((p) => p.dateStr === dateStr).map((p) => p.difficulty),
+    );
+
   const handleAddNew = () => {
-    setIsEditing("new");
     setFormError(null);
-    const firstAvailableDate =
-      availableDates.find((d) => !problems.some((p) => p.dateStr === d)) ||
+    // Pre-select first date that has at least 1 free difficulty slot
+    const firstOpenDate =
+      availableDates.find((d) => takenDifficulties(d).size < 3) ??
       availableDates[0];
-    setFormData({ date: firstAvailableDate, problemId: "" });
+    // Pre-select 1st free difficulty for that date
+    const taken = takenDifficulties(firstOpenDate);
+    const firstFreeDiff = DIFFICULTIES.find((d) => !taken.has(d)) ?? "Easy";
+    setFormData({
+      date: firstOpenDate,
+      difficulty: firstFreeDiff,
+      problemId: "",
+    });
+    setIsAdding(true);
   };
 
-  const handleCancelEdit = () => {
-    setIsEditing(null);
-    setFormData({ date: "", problemId: "" });
+  const handleCancelAdd = () => {
+    setIsAdding(false);
+    setFormData({ date: "", difficulty: "Easy", problemId: "" });
     setFormError(null);
   };
 
   const handleSave = async () => {
-    if (!formData.date || !formData.problemId) {
-      setFormError("Date and Problem ID are required.");
+    if (!formData.date || !formData.problemId || !formData.difficulty) {
+      setFormError("All fields are required.");
       return;
     }
     const idMatches = formData.problemId.match(/^(\d+)\s*([A-Z0-9]+)$/i);
@@ -81,34 +95,60 @@ export default function SetProblemClient() {
     }
     const cfContestId = parseInt(idMatches[1], 10);
     const cfIndex = idMatches[2].toUpperCase();
+
     setIsSaving(true);
     setFormError(null);
     try {
-      const result = await setDailyProblem(formData.date, cfContestId, cfIndex);
+      const result = await setDailyProblem(
+        formData.date,
+        cfContestId,
+        cfIndex,
+        formData.difficulty,
+      );
       if (!result.ok) {
         setFormError(result.error ?? "Failed to save problem");
         return;
       }
-      setIsEditing(null);
-      setFormData({ date: "", problemId: "" });
+      setIsAdding(false);
+      setFormData({ date: "", difficulty: "Easy", problemId: "" });
       await fetchScheduled();
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to remove this scheduled problem?"))
-      return;
-    const result = await deleteScheduledChallenge(id);
-    if (!result.ok) {
-      alert(result.error ?? "Failed to delete");
-      return;
+  const handleDelete = async (id: string, isToday: boolean) => {
+    const msg = isToday
+      ? "This problem is live today. Remove it anyway?"
+      : "Remove this scheduled problem?";
+    if (!confirm(msg)) return;
+    setDeletingId(id);
+    try {
+      const result = await deleteScheduledChallenge(id);
+      if (!result.ok) {
+        alert(result.error ?? "Failed to delete");
+        return;
+      }
+      await fetchScheduled();
+    } finally {
+      setDeletingId(null);
     }
-    await fetchScheduled();
   };
 
-  const remainingSlots = 7 - problems.length;
+  // Group problems by date for display
+  const byDate = availableDates
+    .map((dateStr) => ({
+      dateStr,
+      isToday: dateStr === todayIST,
+      entries: problems.filter((p) => p.dateStr === dateStr),
+    }))
+    .filter((g) => g.entries.length > 0 || isAdding);
+
+  const totalScheduled = problems.length;
+  const maxSlots = 11 * 3; // 11 days × 3 difficulties
+  const hasOpenSlots =
+    problems.length < maxSlots &&
+    availableDates.some((d) => takenDifficulties(d).size < 3);
 
   return (
     <div className={styles.container}>
@@ -116,14 +156,18 @@ export default function SetProblemClient() {
         <div className={styles.headerFlex}>
           <div>
             <h1>Manage Upcoming Problems</h1>
-            <p>Schedule up to 7 days of Codeforces problems in advance.</p>
+            <p>
+              Schedule up to 10 days in advance. Each day can have up to 3
+              problems (Easy, Medium, Hard). Today&apos;s problems can be edited
+              until end of day.
+            </p>
           </div>
           <button
             className={styles.addBtn}
             onClick={handleAddNew}
-            disabled={isEditing !== null || remainingSlots === 0}
+            disabled={isAdding || !hasOpenSlots}
           >
-            + Add Problem ({remainingSlots} left)
+            + Add Problem
           </button>
         </div>
       </div>
@@ -133,51 +177,83 @@ export default function SetProblemClient() {
           <p style={{ color: "#666" }}>Loading scheduled problems...</p>
         )}
 
-        {!loadingInitial && problems.length === 0 && isEditing !== "new" && (
-          <div className={styles.emptyState}>
-            No upcoming problems scheduled. Click &quot;Add Problem&quot; to get
-            started.
-          </div>
-        )}
-
-        {isEditing === "new" && (
+        {/* Add form */}
+        {isAdding && (
           <div className={styles.editCard}>
             <div className={styles.editHeader}>
               <h3>Schedule New Problem</h3>
             </div>
             <div className={styles.formGrid}>
+              {/* Date */}
               <div className={styles.formGroup}>
                 <label htmlFor="editDate">Date (IST)</label>
                 <select
                   id="editDate"
                   title="Select Date"
                   value={formData.date}
-                  onChange={(e) =>
-                    setFormData({ ...formData, date: e.target.value })
-                  }
+                  onChange={(e) => {
+                    const newDate = e.target.value;
+                    const taken = takenDifficulties(newDate);
+                    const freeDiff =
+                      DIFFICULTIES.find((d) => !taken.has(d)) ?? "Easy";
+                    setFormData({
+                      ...formData,
+                      date: newDate,
+                      difficulty: taken.has(formData.difficulty)
+                        ? freeDiff
+                        : formData.difficulty,
+                    });
+                  }}
                 >
-                  {availableDates.map((d) => (
-                    <option
-                      key={d}
-                      value={d}
-                      disabled={problems.some((p) => p.dateStr === d)}
-                    >
-                      {new Date(d + "T00:00:00Z").toLocaleDateString("en-US", {
-                        weekday: "short",
-                        month: "short",
-                        day: "numeric",
-                        timeZone: "UTC",
-                      })}
-                    </option>
-                  ))}
+                  {availableDates.map((d) => {
+                    const taken = takenDifficulties(d);
+                    const full = taken.size >= 3;
+                    return (
+                      <option key={d} value={d} disabled={full}>
+                        {d === todayIST ? "Today" : formatDate(d, "short")}{" "}
+                        {full
+                          ? "(full)"
+                          : taken.size > 0
+                            ? `(${taken.size}/3)`
+                            : ""}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
+
+              {/* Difficulty */}
+              <div className={styles.formGroup}>
+                <label htmlFor="editDifficulty">Difficulty</label>
+                <select
+                  id="editDifficulty"
+                  title="Select Difficulty"
+                  value={formData.difficulty}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      difficulty: e.target.value as "Easy" | "Medium" | "Hard",
+                    })
+                  }
+                >
+                  {DIFFICULTIES.map((d) => {
+                    const taken = takenDifficulties(formData.date);
+                    return (
+                      <option key={d} value={d} disabled={taken.has(d)}>
+                        {d} {taken.has(d) ? "(taken)" : ""}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              {/* Problem ID */}
               <div className={styles.formGroup}>
                 <label>Problem ID</label>
                 <input
                   type="text"
                   title="Codeforces Problem ID (e.g., 158A)"
-                  placeholder="e.g., 158A"
+                  placeholder="e.g., 158A or 1234B1"
                   value={formData.problemId}
                   onChange={(e) =>
                     setFormData({
@@ -189,6 +265,7 @@ export default function SetProblemClient() {
                 />
               </div>
             </div>
+
             {formError && (
               <p
                 style={{
@@ -200,10 +277,11 @@ export default function SetProblemClient() {
                 {formError}
               </p>
             )}
+
             <div className={styles.actions}>
               <button
                 className={styles.cancelBtn}
-                onClick={handleCancelEdit}
+                onClick={handleCancelAdd}
                 disabled={isSaving}
               >
                 Cancel
@@ -219,49 +297,91 @@ export default function SetProblemClient() {
           </div>
         )}
 
-        {problems.map((prob) => (
-          <div key={prob.id} className={styles.problemCard}>
-            <div className={styles.cardHeader}>
-              <span className={styles.dateLabel}>
-                {new Date(prob.dateStr + "T00:00:00Z").toLocaleDateString(
-                  "en-US",
-                  {
-                    weekday: "long",
-                    month: "short",
-                    day: "numeric",
-                    timeZone: "UTC",
-                  },
-                )}
-              </span>
-              <div className={styles.cardActions}>
-                <button
-                  title="Delete Problem"
-                  className={styles.iconBtnDestructive}
-                  onClick={() => handleDelete(prob.id)}
-                  disabled={isEditing !== null}
-                >
-                  <IconTrash width="16" height="16" aria-hidden="true" />
-                </button>
-              </div>
-            </div>
-            <div className={styles.cardBody}>
-              <h4>{prob.problem.name}</h4>
-              <div className={styles.meta}>
-                <span className={styles.difficulty}>
-                  Rating: {prob.problem.rating || "Unrated"}
-                </span>
-                <a
-                  href={`https://codeforces.com/problemset/problem/${prob.problem.cfContestId}/${prob.problem.cfIndex}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className={styles.urlLink}
-                >
-                  View on CF ↗
-                </a>
-              </div>
-            </div>
+        {/* Empty state */}
+        {!loadingInitial && totalScheduled === 0 && !isAdding && (
+          <div className={styles.emptyState}>
+            No upcoming problems scheduled. Click &quot;Add Problem&quot; to get
+            started.
           </div>
-        ))}
+        )}
+
+        {/* Problems grouped by date */}
+        {byDate.map(({ dateStr, isToday, entries }) =>
+          entries.map((prob) => (
+            <div
+              key={prob.id}
+              className={styles.problemCard}
+              style={isToday ? { borderLeft: "3px solid #6366f1" } : undefined}
+            >
+              <div className={styles.cardHeader}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                  }}
+                >
+                  <span className={styles.dateLabel}>
+                    {isToday ? "Today" : formatDate(dateStr, "long")}
+                  </span>
+                  {isToday && (
+                    <span
+                      style={{
+                        fontSize: "0.7rem",
+                        background: "#6366f1",
+                        color: "#fff",
+                        padding: "1px 6px",
+                        borderRadius: "999px",
+                      }}
+                    >
+                      LIVE
+                    </span>
+                  )}
+                  <span
+                    style={{
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      color: DIFFICULTY_COLORS[prob.difficulty],
+                      padding: "1px 8px",
+                      borderRadius: "999px",
+                      border: `1px solid ${DIFFICULTY_COLORS[prob.difficulty]}`,
+                    }}
+                  >
+                    {prob.difficulty}
+                  </span>
+                </div>
+                <div className={styles.cardActions}>
+                  <button
+                    title={
+                      isToday ? "Remove today's problem" : "Delete Problem"
+                    }
+                    className={styles.iconBtnDestructive}
+                    onClick={() => handleDelete(prob.id, isToday)}
+                    disabled={isAdding || deletingId === prob.id}
+                  >
+                    <IconTrash width="16" height="16" aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+              <div className={styles.cardBody}>
+                <h4>{prob.problem.name}</h4>
+                <div className={styles.meta}>
+                  <span className={styles.difficulty}>
+                    Rating: {prob.problem.rating || "Unrated"}
+                  </span>
+                  <a
+                    href={`https://codeforces.com/problemset/problem/${prob.problem.cfContestId}/${prob.problem.cfIndex}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={styles.urlLink}
+                  >
+                    View on CF ↗
+                  </a>
+                </div>
+              </div>
+            </div>
+          )),
+        )}
       </div>
     </div>
   );

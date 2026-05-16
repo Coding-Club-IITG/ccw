@@ -33,3 +33,22 @@ export type ModuleRoleType = (typeof MODULE_ROLES)[number];
 
 export const PROJECT_STATUSES = ["Upcoming", "Completed"] as const;
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
+
+/* POTD */
+
+export const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000; // Offset from UTC to IST in ms
+
+export const DIFFICULTIES = ["Easy", "Medium", "Hard"] as const;
+export type Difficulty = (typeof DIFFICULTIES)[number];
+
+export const DIFFICULTY_COLORS: Record<Difficulty, string> = {
+  Easy: "#10b981",
+  Medium: "#f59e0b",
+  Hard: "#e11d48",
+};
+
+export const DIFFICULTY_ORDER: Record<Difficulty, number> = {
+  Easy: 0,
+  Medium: 1,
+  Hard: 2,
+};
