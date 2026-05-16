@@ -27,6 +27,15 @@ const UserSchema = new mongoose.Schema(
     githubId: { type: String, default: "" },
     bio: { type: String, default: "" },
     phoneNumber: { type: String, default: "" },
+    
+    // POTD & CF Verification
+    cfVerified: { type: Boolean, default: false },
+    cfVerificationToken: { type: String, default: "" },
+    cfVerificationRequestedAt: { type: Date },
+    potdTotalPoints: { type: Number, default: 0 },
+    potdCurrentStreak: { type: Number, default: 0 },
+    potdLongestStreak: { type: Number, default: 0 },
+    potdTotalSolved: { type: Number, default: 0 },
   },
   { timestamps: true },
 );
