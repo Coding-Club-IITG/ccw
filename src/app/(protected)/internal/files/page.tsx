@@ -8,7 +8,7 @@ import {
   isGlobalAdmin,
   isAdmin,
 } from "@/lib/roles";
-import type { CurrentUser } from "@/components/files/FilesClient";
+import type { CurrentUser } from "@/components/files/types";
 
 export default async function FilesPage() {
   const session = await auth.api.getSession({
