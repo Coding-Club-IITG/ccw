@@ -29,7 +29,8 @@ export default async function DashboardPage() {
             <li>Global Role: {user.role}</li>
             {moduleRoles.map((mr: any, i: number) => (
               <li key={i}>
-                {mr.module}: {mr.role}
+                {mr.module}
+                {mr.role ? `: ${mr.role}` : ""}
               </li>
             ))}
           </ul>
@@ -48,13 +49,13 @@ export default async function DashboardPage() {
               <a href="/internal/profile">Update Profile</a>
             </li>
             <li>
-              <a href="/internal/leaderboard">Codeforces Leaderboard</a>
-            </li>
-            <li>
               <a href="/internal/files">Files Sharing</a>
             </li>
             <li>
-              <a href="/internal/potd">Codeforces - POTD</a>
+              <a href="/internal/leaderboard">Codeforces Leaderboard</a>
+            </li>
+            <li>
+              <a href="/internal/potd">Codeforces POTD</a>
             </li>
             {isAdmin(user.role) && (
               <li>

@@ -74,19 +74,30 @@ export async function GET(request: NextRequest, context: RouteContext) {
   const nodeStream = createReadStream(filePath);
   const webStream = Readable.toWeb(nodeStream) as ReadableStream;
 
+  // For downloadable files: Content-Disposition attachment (triggers save dialog)
+  // For view-only files: Content-Disposition inline (renders in browser / iframe)
+  // The filename is intentionally omitted from inline responses
   const safeFilename = encodeURIComponent(file.originalName);
   const disposition = file.isDownloadable
     ? `attachment; filename="${safeFilename}"; filename*=UTF-8''${safeFilename}`
     : "inline";
 
-  return new NextResponse(webStream, {
-    headers: {
-      "Content-Type": file.mimeType,
-      "Content-Disposition": disposition,
-      "Content-Length": String(file.size),
-      "Cache-Control": "private, no-store",
-    },
-  });
+  const headers: Record<string, string> = {
+    "Content-Type": file.mimeType,
+    "Content-Disposition": disposition,
+    "Content-Length": String(file.size),
+    "Cache-Control": "private, no-store",
+    "X-Content-Type-Options": "nosniff",
+  };
+
+  if (!file.isDownloadable) {
+    // Allow iframing only from the same origin (for in-app viewer)
+    // This also blocks embedding on external sites
+    headers["X-Frame-Options"] = "SAMEORIGIN";
+    headers["Content-Security-Policy"] = "frame-ancestors 'self'";
+  }
+
+  return new NextResponse(webStream, { headers });
 }
 
 // PATCH /api/files/[id]

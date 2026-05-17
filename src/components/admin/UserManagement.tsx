@@ -29,8 +29,12 @@ export default function UserManagement() {
 
   async function fetchUsers() {
     try {
-      const data = await getUsers();
-      setUsers(data);
+      const result = await getUsers();
+      if (!result.success) {
+        console.error("Failed to fetch users:", result.error);
+      } else {
+        setUsers(result.users);
+      }
     } catch (error) {
       console.error("Failed to fetch users:", error);
     } finally {
@@ -42,32 +46,32 @@ export default function UserManagement() {
     e.preventDefault();
     if (!newEmail) return;
 
-    try {
-      await addUser(newEmail, newName);
+    const result = await addUser(newEmail, newName);
+    if (!result.success) {
+      alert(result.error);
+    } else {
       setNewEmail("");
       setNewName("");
       fetchUsers();
-    } catch (error: any) {
-      alert(error.message);
     }
   }
 
   async function handleRoleChange(userId: string, newRole: string) {
-    try {
-      await updateUserRole(userId, newRole);
+    const result = await updateUserRole(userId, newRole);
+    if (!result.success) {
+      alert(result.error);
+    } else {
       fetchUsers();
-    } catch (error: any) {
-      alert(error.message);
     }
   }
 
   async function handleDelete(userId: string) {
     if (!confirm("Are you sure you want to delete this user?")) return;
-    try {
-      await deleteUser(userId);
+    const result = await deleteUser(userId);
+    if (!result.success) {
+      alert(result.error);
+    } else {
       fetchUsers();
-    } catch (error: any) {
-      alert(error.message);
     }
   }
 
@@ -78,12 +82,15 @@ export default function UserManagement() {
 
   async function saveModuleRoles() {
     if (!editingUser) return;
-    try {
-      await updateUserModuleRoles(editingUser._id, tempModuleRoles);
+    const result = await updateUserModuleRoles(
+      editingUser._id,
+      tempModuleRoles,
+    );
+    if (!result.success) {
+      alert(result.error);
+    } else {
       setEditingUser(null);
       fetchUsers();
-    } catch (error: any) {
-      alert(error.message);
     }
   }
 

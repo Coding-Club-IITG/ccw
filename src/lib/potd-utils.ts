@@ -1,11 +1,11 @@
 /**
- * Pure utility helpers for POTD window calculations, scoring, and date formatting.
+ * Pure utility helpers for POTD window calculations, scoring, and date formatting
  */
 
 import { IST_OFFSET_MS } from "./constants";
 
 /**
- * Given YYYY-MM-DD string (IST date), compute the three window timestamps.
+ * Given IST date string, compute the three window timestamps
  * Window: 12:00 AM IST (18:30 UTC prev day) -> 11:59 PM IST (18:29 UTC same day)
  * Grace:  11:59 PM IST -> 1:00 AM IST next day (19:29:59 UTC same day)
  */
@@ -27,7 +27,7 @@ export function computeWindowTimes(dateStr: string): {
 }
 
 /**
- * Returns the current IST date string (YYYY-MM-DD).
+ * Returns the current IST date string
  * The challenge for a given IST date runs from midnight to midnight IST,
  * so the current date is simply the IST wall-clock date.
  */
@@ -36,22 +36,20 @@ export function getTodayISTDateStr(): string {
 }
 
 /**
- * Converts a `windowStart` timestamp (18:30 UTC of the *previous* calendar day)
- * to the corresponding IST date string (YYYY-MM-DD).
- *
- * windowStart sits 5.5 h before IST midnight of the challenge date, so adding
- * IST_OFFSET_MS + 24 h lands us at noon IST on the challenge date — safely
- * within the correct calendar day regardless of DST edge cases.
+ * Converts a `windowStart` timestamp to the corresponding IST date string
+ * windowStart is 18:30 UTC on (challenge date - 1), which equals
+ * 00:00 IST on the challenge date. Adding IST_OFFSET_MS shifts it
+ * to 00:00 UTC representation of the challenge date, so slicing the
+ * ISO string gives the correct IST date directly.
  */
 export function windowStartToISTDateStr(windowStart: Date | string): string {
-  const ms =
-    new Date(windowStart).getTime() + IST_OFFSET_MS + 24 * 60 * 60 * 1000;
+  const ms = new Date(windowStart).getTime() + IST_OFFSET_MS;
   return new Date(ms).toISOString().slice(0, 10);
 }
 
 /**
- * Returns today + the next 10 days as IST date strings (YYYY-MM-DD),
- * giving the full scheduling horizon for upcoming POTD problems.
+ * Returns today + the next 10 days as IST date strings,
+ * giving the full scheduling horizon for upcoming POTD problems
  */
 export function getAvailableDates(): string[] {
   const dates: string[] = [];
@@ -64,8 +62,8 @@ export function getAvailableDates(): string[] {
 }
 
 /**
- * Formats a YYYY-MM-DD date string (interpreted as UTC midnight) into a
- * human-readable label for display in POTD UI components.
+ * Formats a YYYY-MM-DD date string into a
+ * human-readable label for display in POTD UI components
  */
 export function formatDate(
   dateStr: string,
@@ -83,7 +81,7 @@ export function formatDate(
  * PRD scoring formula:
  *   Points = round((rating / 10) × (1 - 0.5 × hoursElapsed/24) × (1 + 0.05 × min(streak, 10)))
  * hoursElapsed = (solvedAt - windowStart) / 3_600_000
- * Grace window solves (solvedAt > windowEnd) -> 0 points.
+ * Grace window solves (solvedAt > windowEnd) -> 0 points
  */
 export function computePoints(
   rating: number,

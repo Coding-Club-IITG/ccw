@@ -46,16 +46,18 @@ export default function ProfileForm() {
     try {
       const res = await fetch("/api/cf/verify-handle", { method: "POST" });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-
+      if (!res.ok) {
+        setMessage({
+          type: "error",
+          text: data.error || "Verification failed",
+        });
+        return;
+      }
       setCfVerified(true);
       setCfVerificationToken("");
       setMessage({ type: "success", text: "Codeforces handle verified!" });
-    } catch (error: any) {
-      setMessage({
-        type: "error",
-        text: error.message || "Verification failed",
-      });
+    } catch {
+      setMessage({ type: "error", text: "Network error. Please try again." });
     } finally {
       setVerifying(false);
     }
@@ -64,20 +66,19 @@ export default function ProfileForm() {
   async function handleRequestToken() {
     setVerifying(true);
     setMessage(null);
-    try {
-      const token = await requestHandleVerification(formData.codeforcesId);
-      setCfVerificationToken(token);
+    const result = await requestHandleVerification(formData.codeforcesId);
+    setVerifying(false);
+    if (!result.ok) {
+      setMessage({
+        type: "error",
+        text: result.error || "Failed to generate token",
+      });
+    } else {
+      setCfVerificationToken(result.token!);
       setMessage({
         type: "success",
         text: "Token generated. Please update your CF profile.",
       });
-    } catch (error: any) {
-      setMessage({
-        type: "error",
-        text: error.message || "Failed to generate token",
-      });
-    } finally {
-      setVerifying(false);
     }
   }
 
@@ -86,20 +87,19 @@ export default function ProfileForm() {
     setLoading(true);
     setMessage(null);
 
-    try {
-      await updateProfile(formData);
-      // Could also use authClient.updateUser
+    const result = await updateProfile(formData);
+    setLoading(false);
+
+    if (!result.success) {
+      setMessage({
+        type: "error",
+        text: result.error || "Failed to update profile.",
+      });
+    } else {
       setMessage({
         type: "success",
         text: "Profile updated successfully! Refresh to see changes.",
       });
-    } catch (error: any) {
-      setMessage({
-        type: "error",
-        text: error.message || "Failed to update profile.",
-      });
-    } finally {
-      setLoading(false);
     }
   }
 

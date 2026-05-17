@@ -1,0 +1,59 @@
+import type { AccessControl, CurrentUser, FileEntry } from "./types";
+
+export const EMPTY_ACL: AccessControl = {
+  allMembers: false,
+  allowedModules: [],
+  allowedGlobalRoles: [],
+  allowedModuleRoles: [],
+  allowedUsers: [],
+};
+
+export const DEFAULT_FOLDER = "General";
+
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+// MIME types the browser can render natively without triggering a download
+export function isPreviewable(mimeType: string): boolean {
+  return (
+    mimeType === "application/pdf" ||
+    mimeType.startsWith("image/") ||
+    mimeType.startsWith("text/") ||
+    mimeType === "video/mp4" ||
+    mimeType === "video/webm" ||
+    mimeType.startsWith("audio/")
+  );
+}
+
+// Client-side mirror of the server canManageFile check (used for UI hints)
+export function canManageFile(user: CurrentUser, file: FileEntry): boolean {
+  if (user.isGlobalAdmin) return true;
+  if (user.headModules.length > 0 && file.uploaderModule) {
+    if (user.headModules.includes(file.uploaderModule)) return true;
+  }
+  return file.uploadedBy === user.id;
+}
+
+export function aclSummary(acl: AccessControl): string {
+  if (acl.allMembers) return "All Members";
+  const parts: string[] = [];
+  if (acl.allowedModules.length)
+    parts.push(`${acl.allowedModules.length} module(s)`);
+  if (acl.allowedGlobalRoles.length)
+    parts.push(`${acl.allowedGlobalRoles.length} role(s)`);
+  if (acl.allowedModuleRoles.length)
+    parts.push(`${acl.allowedModuleRoles.length} module role(s)`);
+  if (acl.allowedUsers.length) parts.push(`${acl.allowedUsers.length} user(s)`);
+  return parts.length ? parts.join(", ") : "Restricted";
+}
