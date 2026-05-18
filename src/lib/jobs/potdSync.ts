@@ -5,7 +5,7 @@ import CFUser from "@/models/CFUser";
 import DailyChallenge from "@/models/POTDDailyChallenge";
 import POTDSubmission from "@/models/POTDSubmission";
 import { logger } from "@/lib/utils";
-import { computePoints } from "@/lib/potd-utils";
+import { processSubmission } from "@/lib/potd-submit";
 
 const CF_SUBMISSIONS_COUNT = 100;
 const RETRY_DELAY_MS = 5 * 60 * 1000; // 5 mins between health-check retries
@@ -100,91 +100,7 @@ async function syncPendingSubmissions(challenge: any): Promise<void> {
       }
 
       const cfSubs: any[] = data.result;
-      const acceptedSub = cfSubs.find(
-        (s: any) =>
-          s.verdict === "OK" &&
-          s.problem.contestId === problem.cfContestId &&
-          s.problem.index === problem.cfIndex &&
-          new Date(s.creationTimeSeconds * 1000) >= windowStart,
-      );
-
-      let newStatus: "Pending" | "Accepted" | "Late" | "NotSolved" = "Pending";
-      let solvedAt: Date | null = null;
-      let pointsAwarded = 0;
-
-      if (acceptedSub) {
-        solvedAt = new Date(acceptedSub.creationTimeSeconds * 1000);
-        newStatus = solvedAt <= windowEnd ? "Accepted" : "Late";
-      } else if (now > graceEnd) {
-        newStatus = "NotSolved";
-      }
-
-      if ((newStatus === "Accepted" || newStatus === "Late") && solvedAt) {
-        const currentStreak = cfUser.potdCurrentStreak ?? 0;
-        pointsAwarded = computePoints(
-          problem.rating,
-          solvedAt.getTime(),
-          windowEnd.getTime(),
-          graceEnd.getTime(),
-          currentStreak,
-        );
-      }
-
-      const prevSub = await POTDSubmission.findByIdAndUpdate(
-        sub._id,
-        {
-          $set: {
-            status: newStatus,
-            solvedAt,
-            pointsAwarded,
-            solvedInGrace: newStatus === "Late",
-            lastCheckedAt: now,
-          },
-        },
-        { new: false },
-      );
-
-      const wasAlreadyFinal =
-        prevSub?.status === "Accepted" || prevSub?.status === "Late";
-
-      if (!wasAlreadyFinal) {
-        if (newStatus === "Accepted") {
-          // Normal solve
-          const alreadySolvedToday =
-            otherChallengeIds.length > 0 &&
-            !!(await POTDSubmission.exists({
-              userId: user._id,
-              challengeId: { $in: otherChallengeIds },
-              status: "Accepted",
-            }));
-
-          if (!alreadySolvedToday) {
-            // Streak increments only on the 1st solve of the day
-            const prevStreak = cfUser.potdCurrentStreak ?? 0;
-            const newStreak = prevStreak + 1;
-            await CFUser.findOneAndUpdate(
-              { userId: user._id },
-              {
-                $inc: { potdTotalPoints: pointsAwarded, potdTotalSolved: 1 },
-                $max: { potdLongestStreak: newStreak },
-                $set: { potdCurrentStreak: newStreak },
-              },
-            );
-          } else {
-            await CFUser.findOneAndUpdate(
-              { userId: user._id },
-              { $inc: { potdTotalPoints: pointsAwarded, potdTotalSolved: 1 } },
-            );
-          }
-        } else if (newStatus === "Late") {
-          // Grace solve
-          await CFUser.findOneAndUpdate(
-            { userId: user._id },
-            { $inc: { potdTotalPoints: pointsAwarded, potdTotalSolved: 1 } },
-          );
-        }
-        // "NotSolved": streak reset handled in Phase 3
-      }
+      await processSubmission(user._id, challenge, cfUser, cfSubs);
     } catch (err) {
       logger.warn(`[potd-sync] Error syncing ${user.codeforcesId}`, { err });
     }

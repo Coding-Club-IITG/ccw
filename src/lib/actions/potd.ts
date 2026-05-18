@@ -19,7 +19,7 @@ import POTDSubmission from "@/models/POTDSubmission";
 
 import { logger } from "@/lib/utils";
 import { DIFFICULTY_ORDER } from "@/lib/constants";
-import { computePoints } from "@/lib/potd-utils";
+import { processSubmission } from "@/lib/potd-submit";
 
 // Types
 
@@ -211,20 +211,6 @@ export async function syncMySubmission(challengeId: string): Promise<{
       };
     }
 
-    const problem = challenge.problem as any;
-    const windowStart = challenge.windowStart as Date;
-    const windowEnd = challenge.windowEnd as Date;
-    const graceEnd = challenge.graceEnd as Date;
-    const now = new Date();
-
-    const todaysChallengeIds: any[] = await DailyChallenge.find({
-      windowStart: challenge.windowStart,
-    }).distinct("_id");
-
-    const otherChallengeIds = todaysChallengeIds.filter(
-      (id) => id.toString() !== challengeId,
-    );
-
     // Fetch CF submissions
     const cfUrl = `https://codeforces.com/api/user.status?handle=${encodeURIComponent(user.codeforcesId)}&from=1&count=${CF_SUBMISSIONS_COUNT}`;
 
@@ -240,92 +226,12 @@ export async function syncMySubmission(challengeId: string): Promise<{
       return { ok: false, error: "Failed to reach Codeforces API" };
     }
 
-    // Find 1st AC for this problem submitted after windowStart
-    const acceptedSub = cfSubs.find(
-      (s: any) =>
-        s.verdict === "OK" &&
-        s.problem.contestId === problem.cfContestId &&
-        s.problem.index === problem.cfIndex &&
-        new Date(s.creationTimeSeconds * 1000) >= windowStart,
+    const { status: newStatus, pointsAwarded } = await processSubmission(
+      userId,
+      challenge,
+      cfUser,
+      cfSubs,
     );
-
-    let newStatus: "Pending" | "Accepted" | "Late" | "NotSolved" = "Pending";
-    let solvedAt: Date | null = null;
-    let pointsAwarded = 0;
-
-    if (acceptedSub) {
-      solvedAt = new Date(acceptedSub.creationTimeSeconds * 1000);
-      newStatus = solvedAt <= windowEnd ? "Accepted" : "Late";
-    } else if (now > graceEnd) {
-      newStatus = "NotSolved";
-    }
-
-    if ((newStatus === "Accepted" || newStatus === "Late") && solvedAt) {
-      const currentStreak = cfUser.potdCurrentStreak ?? 0;
-      pointsAwarded = computePoints(
-        problem.rating,
-        solvedAt.getTime(),
-        windowEnd.getTime(),
-        graceEnd.getTime(),
-        currentStreak,
-      );
-    }
-
-    const prevSub = await POTDSubmission.findOneAndUpdate(
-      { userId, challengeId },
-      {
-        $set: {
-          status: newStatus,
-          solvedAt,
-          pointsAwarded,
-          solvedInGrace: newStatus === "Late",
-          lastCheckedAt: now,
-        },
-        $setOnInsert: { userId, challengeId },
-      },
-      { upsert: true, new: false },
-    );
-
-    const wasAlreadyFinal =
-      prevSub?.status === "Accepted" || prevSub?.status === "Late";
-
-    if (!wasAlreadyFinal) {
-      if (newStatus === "Accepted") {
-        // Normal solve
-        const alreadySolvedToday =
-          otherChallengeIds.length > 0 &&
-          !!(await POTDSubmission.exists({
-            userId,
-            challengeId: { $in: otherChallengeIds },
-            status: "Accepted",
-          }));
-
-        if (!alreadySolvedToday) {
-          // Streak increments only on 1st solve of the day
-          const prevStreak = cfUser.potdCurrentStreak ?? 0;
-          const newStreak = prevStreak + 1;
-          await CFUser.findOneAndUpdate(
-            { userId },
-            {
-              $inc: { potdTotalPoints: pointsAwarded, potdTotalSolved: 1 },
-              $max: { potdLongestStreak: newStreak },
-              $set: { potdCurrentStreak: newStreak },
-            },
-          );
-        } else {
-          await CFUser.findOneAndUpdate(
-            { userId },
-            { $inc: { potdTotalPoints: pointsAwarded, potdTotalSolved: 1 } },
-          );
-        }
-      } else if (newStatus === "Late") {
-        // Grace solve
-        await CFUser.findOneAndUpdate(
-          { userId },
-          { $inc: { potdTotalPoints: pointsAwarded, potdTotalSolved: 1 } },
-        );
-      }
-    }
 
     revalidatePath("/internal/potd");
 

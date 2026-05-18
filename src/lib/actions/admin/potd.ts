@@ -22,9 +22,9 @@ import { IST_OFFSET_MS } from "@/lib/constants";
 import {
   computeWindowTimes,
   getTodayISTDateStr,
-  computePoints,
   windowStartToISTDateStr,
 } from "@/lib/potd-utils";
+import { processSubmission } from "@/lib/potd-submit";
 
 async function checkAdmin() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -355,91 +355,12 @@ export async function forceSyncUser(
     return { ok: false, error: "Failed to reach Codeforces API" };
   }
 
-  const acceptedSub = cfSubs.find(
-    (s: any) =>
-      s.verdict === "OK" &&
-      s.problem.contestId === problem.cfContestId &&
-      s.problem.index === problem.cfIndex &&
-      new Date(s.creationTimeSeconds * 1000) >= windowStart,
+  const { status: newStatus } = await processSubmission(
+    targetUserId,
+    challenge,
+    targetCFUser,
+    cfSubs,
   );
-
-  let newStatus: "Pending" | "Accepted" | "Late" | "NotSolved" = "Pending";
-  let solvedAt: Date | null = null;
-  let pointsAwarded = 0;
-
-  if (acceptedSub) {
-    solvedAt = new Date(acceptedSub.creationTimeSeconds * 1000);
-    newStatus = solvedAt <= windowEnd ? "Accepted" : "Late";
-  } else if (now > graceEnd) {
-    newStatus = "NotSolved";
-  }
-
-  if ((newStatus === "Accepted" || newStatus === "Late") && solvedAt) {
-    const currentStreak = targetCFUser.potdCurrentStreak ?? 0;
-    pointsAwarded = computePoints(
-      problem.rating,
-      solvedAt.getTime(),
-      windowEnd.getTime(),
-      graceEnd.getTime(),
-      currentStreak,
-    );
-  }
-
-  const prevSub = await POTDSubmission.findOneAndUpdate(
-    { userId: targetUserId, challengeId },
-    {
-      $set: {
-        status: newStatus,
-        solvedAt,
-        pointsAwarded,
-        solvedInGrace: newStatus === "Late",
-        lastCheckedAt: now,
-      },
-      $setOnInsert: { userId: targetUserId, challengeId },
-    },
-    { upsert: true, new: false },
-  );
-
-  const wasAlreadyFinal =
-    prevSub?.status === "Accepted" || prevSub?.status === "Late";
-
-  if (!wasAlreadyFinal) {
-    if (newStatus === "Accepted") {
-      // Normal solve
-      const alreadySolvedToday =
-        otherChallengeIds.length > 0 &&
-        !!(await POTDSubmission.exists({
-          userId: targetUserId,
-          challengeId: { $in: otherChallengeIds },
-          status: "Accepted",
-        }));
-
-      if (!alreadySolvedToday) {
-        // Streak increments only on 1st solve of the day
-        const prevStreak = targetCFUser.potdCurrentStreak ?? 0;
-        const newStreak = prevStreak + 1;
-        await CFUser.findOneAndUpdate(
-          { userId: targetUserId },
-          {
-            $inc: { potdTotalPoints: pointsAwarded, potdTotalSolved: 1 },
-            $max: { potdLongestStreak: newStreak },
-            $set: { potdCurrentStreak: newStreak },
-          },
-        );
-      } else {
-        await CFUser.findOneAndUpdate(
-          { userId: targetUserId },
-          { $inc: { potdTotalPoints: pointsAwarded, potdTotalSolved: 1 } },
-        );
-      }
-    } else if (newStatus === "Late") {
-      // Grace solve
-      await CFUser.findOneAndUpdate(
-        { userId: targetUserId },
-        { $inc: { potdTotalPoints: pointsAwarded, potdTotalSolved: 1 } },
-      );
-    }
-  }
 
   logger.info("[forceSyncUser] Synced", {
     targetUserId,
