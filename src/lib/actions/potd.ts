@@ -42,11 +42,13 @@ export type ChallengeEntry = {
 export type TodayChallengeData = {
   windowStart: string; // ISO — shared across all challenges for the day
   windowEnd: string; // ISO — EOD IST (18:29 UTC)
-  graceEnd: string; // ISO — ~1 AM IST next day (19:29 UTC)
+  graceEnd: string; // ISO — 2:00 AM IST next day (20:29 UTC)
   challenges: ChallengeEntry[]; // sorted Easy -> Medium -> Hard
 };
 
 // Get Today's Challenges
+// Only returns challenges during the main window (windowStart <= now <= windowEnd).
+// During the grace window the problem is intentionally not shown.
 
 export async function getTodayChallenge(): Promise<{
   ok: boolean;
@@ -69,7 +71,7 @@ export async function getTodayChallenge(): Promise<{
   if (challenges.length === 0)
     return { ok: false, error: "No active challenge" };
 
-  // All challenges for a day share the same window — use the first
+  // All challenges for a day share the same window — use first
   const first = challenges[0] as any;
 
   const entries: ChallengeEntry[] = await Promise.all(
@@ -167,8 +169,7 @@ export async function syncMySubmission(challengeId: string): Promise<{
     return { ok: false, error: "Sync already in progress" };
   }
 
-  // L2.5: Global CF API rate limit
-  // Ensures across all manual frontend syncs, we only hit CF API once every 1-2 seconds
+  // L2.5: Global CF API rate limit — one CF call every 2s across all manual syncs
   const globalCFLimitKey = `potd:sync:cf_api_global`;
   const cfApiLocked = await redis.set(globalCFLimitKey, "1", {
     NX: true,
@@ -200,12 +201,12 @@ export async function syncMySubmission(challengeId: string): Promise<{
       await DailyChallenge.findById(challengeId).populate("problem");
     if (!challenge) return { ok: false, error: "Challenge not found" };
 
-    // Don't downgrade an already-Accepted submission
+    // Don't re-process an already-finalized submission
     const existing = await POTDSubmission.findOne({ userId, challengeId });
-    if (existing?.status === "Accepted") {
+    if (existing?.status === "Accepted" || existing?.status === "Late") {
       return {
         ok: true,
-        status: "Accepted",
+        status: existing.status,
         pointsAwarded: existing.pointsAwarded,
       };
     }
@@ -246,24 +247,22 @@ export async function syncMySubmission(challengeId: string): Promise<{
 
     if (acceptedSub) {
       solvedAt = new Date(acceptedSub.creationTimeSeconds * 1000);
-      newStatus = solvedAt <= graceEnd ? "Accepted" : "Late";
+      newStatus = solvedAt <= windowEnd ? "Accepted" : "Late";
     } else if (now > graceEnd) {
       newStatus = "NotSolved";
     }
 
-    // Points only awarded for solves within the main window (windowStart -> windowEnd)
-    if (newStatus === "Accepted" && solvedAt && solvedAt <= windowEnd) {
+    if ((newStatus === "Accepted" || newStatus === "Late") && solvedAt) {
       const currentStreak = cfUser.potdCurrentStreak ?? 0;
       pointsAwarded = computePoints(
         problem.rating,
         solvedAt.getTime(),
-        windowStart.getTime(),
         windowEnd.getTime(),
+        graceEnd.getTime(),
         currentStreak,
       );
     }
 
-    // Atomic upsert
     const prevSub = await POTDSubmission.findOneAndUpdate(
       { userId, challengeId },
       {
@@ -271,10 +270,7 @@ export async function syncMySubmission(challengeId: string): Promise<{
           status: newStatus,
           solvedAt,
           pointsAwarded,
-          solvedInGrace:
-            newStatus === "Accepted" &&
-            solvedAt !== null &&
-            solvedAt > windowEnd,
+          solvedInGrace: newStatus === "Late",
           lastCheckedAt: now,
         },
         $setOnInsert: { userId, challengeId },
@@ -282,19 +278,31 @@ export async function syncMySubmission(challengeId: string): Promise<{
       { upsert: true, new: false },
     );
 
-    // Update user POTD stats only if newly accepted
-    const wasAlreadyAccepted = prevSub?.status === "Accepted";
-    if (newStatus === "Accepted" && !wasAlreadyAccepted) {
-      const prevStreak = cfUser.potdCurrentStreak ?? 0;
-      const newStreak = prevStreak + 1;
-      await CFUser.findOneAndUpdate(
-        { userId },
-        {
-          $inc: { potdTotalPoints: pointsAwarded, potdTotalSolved: 1 },
-          $max: { potdLongestStreak: newStreak },
-          $set: { potdCurrentStreak: newStreak },
-        },
-      );
+    const wasAlreadyFinal =
+      prevSub?.status === "Accepted" || prevSub?.status === "Late";
+
+    if (!wasAlreadyFinal) {
+      if (newStatus === "Accepted") {
+        // Normal solve
+        const prevStreak = cfUser.potdCurrentStreak ?? 0;
+        const newStreak = prevStreak + 1;
+        await CFUser.findOneAndUpdate(
+          { userId },
+          {
+            $inc: { potdTotalPoints: pointsAwarded, potdTotalSolved: 1 },
+            $max: { potdLongestStreak: newStreak },
+            $set: { potdCurrentStreak: newStreak },
+          },
+        );
+      } else if (newStatus === "Late") {
+        // Grace solve
+        await CFUser.findOneAndUpdate(
+          { userId },
+          {
+            $inc: { potdTotalPoints: pointsAwarded, potdTotalSolved: 1 },
+          },
+        );
+      }
     }
 
     revalidatePath("/internal/potd");
@@ -411,7 +419,8 @@ export async function getPastProblems(
     {
       $match: {
         challengeId: { $in: challengeIds },
-        status: "Accepted",
+        // Count both normal and grace solves
+        status: { $in: ["Accepted", "Late"] },
       },
     },
     { $group: { _id: "$challengeId", count: { $sum: 1 } } },
@@ -468,7 +477,7 @@ export async function getPotdLeaderboard(
   const rows = await POTDSubmission.aggregate([
     {
       $match: {
-        status: "Accepted",
+        status: { $in: ["Accepted", "Late"] },
         solvedAt: { $gte: since },
       },
     },

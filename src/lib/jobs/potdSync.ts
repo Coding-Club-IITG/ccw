@@ -41,10 +41,9 @@ async function waitForCFApi(): Promise<boolean> {
 }
 
 /**
- * Phase 2
+ * Phase 2: Sync pending submissions
  * For all POTDSubmissions with status=Pending for the challenge that just ended
  * (graceEnd <= now), fetch CF status and update each user atomically.
- * Skips any submission already marked Accepted.
  */
 async function syncPendingSubmissions(challenge: any): Promise<void> {
   const problem = challenge.problem as any;
@@ -107,18 +106,18 @@ async function syncPendingSubmissions(challenge: any): Promise<void> {
 
       if (acceptedSub) {
         solvedAt = new Date(acceptedSub.creationTimeSeconds * 1000);
-        newStatus = solvedAt <= graceEnd ? "Accepted" : "Late";
+        newStatus = solvedAt <= windowEnd ? "Accepted" : "Late";
       } else if (now > graceEnd) {
         newStatus = "NotSolved";
       }
 
-      if (newStatus === "Accepted" && solvedAt && solvedAt <= windowEnd) {
+      if ((newStatus === "Accepted" || newStatus === "Late") && solvedAt) {
         const currentStreak = cfUser.potdCurrentStreak ?? 0;
         pointsAwarded = computePoints(
           problem.rating,
           solvedAt.getTime(),
-          windowStart.getTime(),
           windowEnd.getTime(),
+          graceEnd.getTime(),
           currentStreak,
         );
       }
@@ -130,27 +129,38 @@ async function syncPendingSubmissions(challenge: any): Promise<void> {
             status: newStatus,
             solvedAt,
             pointsAwarded,
-            solvedInGrace:
-              newStatus === "Accepted" &&
-              solvedAt !== null &&
-              solvedAt > windowEnd,
+            solvedInGrace: newStatus === "Late",
             lastCheckedAt: now,
           },
         },
         { new: false },
       );
 
-      if (newStatus === "Accepted" && prevSub?.status !== "Accepted") {
-        const prevStreak = cfUser.potdCurrentStreak ?? 0;
-        const newStreak = prevStreak + 1;
-        await CFUser.findOneAndUpdate(
-          { userId: user._id },
-          {
-            $inc: { potdTotalPoints: pointsAwarded, potdTotalSolved: 1 },
-            $max: { potdLongestStreak: newStreak },
-            $set: { potdCurrentStreak: newStreak },
-          },
-        );
+      const wasAlreadyFinal =
+        prevSub?.status === "Accepted" || prevSub?.status === "Late";
+
+      if (!wasAlreadyFinal) {
+        if (newStatus === "Accepted") {
+          // Normal solve
+          const prevStreak = cfUser.potdCurrentStreak ?? 0;
+          const newStreak = prevStreak + 1;
+          await CFUser.findOneAndUpdate(
+            { userId: user._id },
+            {
+              $inc: { potdTotalPoints: pointsAwarded, potdTotalSolved: 1 },
+              $max: { potdLongestStreak: newStreak },
+              $set: { potdCurrentStreak: newStreak },
+            },
+          );
+        } else if (newStatus === "Late") {
+          // Grace solve
+          await CFUser.findOneAndUpdate(
+            { userId: user._id },
+            {
+              $inc: { potdTotalPoints: pointsAwarded, potdTotalSolved: 1 },
+            },
+          );
+        }
       }
     } catch (err) {
       logger.warn(`[potd-sync] Error syncing ${user.codeforcesId}`, { err });
@@ -162,7 +172,7 @@ async function syncPendingSubmissions(challenge: any): Promise<void> {
 
 /**
  * Phase 3: Streak reset
- * For users who did NOT solve ANY challenge today, reset their current streak
+ * Reset streaks only for users who solved nothing today — neither in main or grace window.
  */
 async function resetStreaksForDay(challenges: any[]): Promise<void> {
   if (challenges.length === 0) return;
@@ -170,15 +180,15 @@ async function resetStreaksForDay(challenges: any[]): Promise<void> {
   const challengeIds = challenges.map((c: any) => c._id);
 
   // Find User IDs that solved at least one challenge today
-  const solvedUserIds = await POTDSubmission.find({
+  const savedUserIds = await POTDSubmission.find({
     challengeId: { $in: challengeIds },
-    status: "Accepted",
+    status: { $in: ["Accepted", "Late"] },
   }).distinct("userId");
 
-  // Reset potdCurrentStreak for everyone else who had an active streak
+  // Reset streak for everyone who had no solve at all today
   const result = await CFUser.updateMany(
     {
-      userId: { $nin: solvedUserIds },
+      userId: { $nin: savedUserIds },
       potdCurrentStreak: { $gt: 0 },
     },
     { $set: { potdCurrentStreak: 0 } },
@@ -207,8 +217,7 @@ export async function syncPOTDSubmissions(): Promise<void> {
 
   const now = new Date();
 
-  // Find challenges whose grace period has just ended (graceEnd <= now)
-  // and that still have pending submissions.
+  // Find challenges whose grace period has ended (graceEnd <= now)
   const challenges = await DailyChallenge.find({
     graceEnd: { $lte: now },
   }).populate("problem");

@@ -1,15 +1,12 @@
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
 import { getTodayChallenge } from "@/lib/actions/potd";
+import { getCFStatus } from "@/lib/actions/cfStatus";
 import DailyChallengeClient from "./DailyChallengeClient";
 
 export default async function PotdPage() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  const user = session?.user as any;
-  const cfVerified = user?.cfVerified || false;
+  const cfStatusResult = await getCFStatus();
+  const cfVerified = cfStatusResult.ok
+    ? (cfStatusResult.cfVerified ?? false)
+    : false;
 
   const challengeResult = await getTodayChallenge();
 

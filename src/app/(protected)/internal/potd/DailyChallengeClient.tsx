@@ -31,6 +31,8 @@ export default function DailyChallengeClient({
   const [syncErrors, setSyncErrors] = useState<Record<string, string>>({});
 
   // Countdown to windowEnd / graceEnd (shared across all challenges for the day)
+  // If the user keeps the page open past windowEnd, timer seamlessly extends
+  // to show the remaining grace window time.
   useEffect(() => {
     setIsClient(true);
 
@@ -43,7 +45,7 @@ export default function DailyChallengeClient({
         if (now <= graceEnd) return graceEnd;
         return graceEnd;
       }
-      // Fallback: EOD IST (18:29:59 UTC = 11:59:59 PM IST)
+      // Fallback: EOD IST
       const istDate = new Date(Date.now() + IST_OFFSET_MS);
       return new Date(
         Date.UTC(
@@ -118,10 +120,10 @@ export default function DailyChallengeClient({
         });
 
         if (result.status === "Accepted") {
+          alert(`Sync complete! You earned ${result.pointsAwarded} pts.`);
+        } else if (result.status === "Late") {
           alert(
-            result.pointsAwarded && result.pointsAwarded > 0
-              ? `Sync complete! You earned ${result.pointsAwarded} points.`
-              : "Sync complete! Solved in grace window — 0 points.",
+            `Sync complete! Grace window solve — ${result.pointsAwarded} pts earned (50% penalty applied, streak saved).`,
           );
         } else if (result.status === "Pending") {
           alert("No accepted submission found yet. Try again later.");
@@ -219,19 +221,21 @@ export default function DailyChallengeClient({
               <span>Problem Rating ÷ 10</span>
             </div>
             <div className={styles.pointsItem}>
-              <span>Time Penalty</span>
-              <span>Linearly drops down to 50% over 24h</span>
+              <span>Streak Bonus</span>
+              <span>+5% per day (max +50% at 10-day streak)</span>
             </div>
             <div className={styles.pointsItem}>
-              <span>Streak Bonus</span>
-              <span>+5% per day (max 10 days / 50%)</span>
+              <span>Grace Penalty</span>
+              <span>50% of base, no streak bonus (streak still saved)</span>
             </div>
           </div>
           <div className={styles.graceNote}>
             <IconInfoCircle width="16" height="16" />
             <span>
-              Solves in the grace window (after midnight – before 1:00 AM IST)
-              yield 0 points but save your streak.
+              Solves after midnight IST enter a 2-hour grace window (until 2:00
+              AM IST). Grace solves earn half points and preserve your streak —
+              but the day&apos;s problem is not shown during this window.
+              Submissions are tracked automatically.
             </span>
           </div>
         </div>
@@ -259,7 +263,8 @@ function ProblemCard({
 }) {
   const { problem, mySubmission, difficulty } = entry;
   const myStatus = mySubmission?.status ?? "none";
-  const alreadyAccepted = myStatus === "Accepted";
+  // Hide the sync button once the submission is in a terminal solved state
+  const alreadySolved = myStatus === "Accepted" || myStatus === "Late";
 
   return (
     <div className={styles.card}>
@@ -298,7 +303,7 @@ function ProblemCard({
         <div className={styles.stat}>
           <span className={styles.label}>Your Status</span>
           <span className={styles.value}>
-            {alreadyAccepted ? (
+            {myStatus === "Accepted" ? (
               <>
                 <IconCheckCircle
                   width="20"
@@ -306,6 +311,15 @@ function ProblemCard({
                   style={{ marginRight: "8px", color: "#10b981" }}
                 />
                 Solved ({mySubmission.pointsAwarded} pts)
+              </>
+            ) : myStatus === "Late" ? (
+              <>
+                <IconCheckCircle
+                  width="20"
+                  height="20"
+                  style={{ marginRight: "8px", color: "#f59e0b" }}
+                />
+                Grace solve ({mySubmission.pointsAwarded} pts)
               </>
             ) : myStatus === "Pending" ? (
               "Not synced yet"
@@ -338,7 +352,7 @@ function ProblemCard({
             >
               Open Problem
             </a>
-            {!alreadyAccepted && (
+            {!alreadySolved && (
               <button
                 className={styles.syncBtn}
                 onClick={onSync}

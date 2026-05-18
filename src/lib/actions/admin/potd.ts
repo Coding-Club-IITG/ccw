@@ -243,9 +243,6 @@ export async function getScheduledChallenges(): Promise<{
 
 // Delete Scheduled Challenge
 
-/**
- * Deletes a scheduled challenge
- */
 export async function deleteScheduledChallenge(
   challengeId: string,
 ): Promise<{ ok: boolean; error?: string }> {
@@ -317,7 +314,11 @@ export async function getPendingSubmissions(challengeId: string): Promise<{
 
 /**
  * Admin: force a CF sync for a specific user/challenge
- * Respects all locks — aborts if cron is already running.
+ * Respects cron locks — aborts if cron is already running.
+ * Applies the same status/points/streak semantics as the cron worker:
+ *   "Accepted" -> streak++, full points
+ *   "Late"     -> 50% points, streak preserved (not incremented)
+ *   "NotSolved"-> no stat changes (streak resets via end-of-day cron)
  */
 export async function forceSyncUser(
   targetUserId: string,
@@ -373,18 +374,18 @@ export async function forceSyncUser(
 
   if (acceptedSub) {
     solvedAt = new Date(acceptedSub.creationTimeSeconds * 1000);
-    newStatus = solvedAt <= graceEnd ? "Accepted" : "Late";
+    newStatus = solvedAt <= windowEnd ? "Accepted" : "Late";
   } else if (now > graceEnd) {
     newStatus = "NotSolved";
   }
 
-  if (newStatus === "Accepted" && solvedAt && solvedAt <= windowEnd) {
+  if ((newStatus === "Accepted" || newStatus === "Late") && solvedAt) {
     const currentStreak = targetCFUser.potdCurrentStreak ?? 0;
     pointsAwarded = computePoints(
       problem.rating,
       solvedAt.getTime(),
-      windowStart.getTime(),
       windowEnd.getTime(),
+      graceEnd.getTime(),
       currentStreak,
     );
   }
@@ -396,8 +397,7 @@ export async function forceSyncUser(
         status: newStatus,
         solvedAt,
         pointsAwarded,
-        solvedInGrace:
-          newStatus === "Accepted" && solvedAt !== null && solvedAt > windowEnd,
+        solvedInGrace: newStatus === "Late",
         lastCheckedAt: now,
       },
       $setOnInsert: { userId: targetUserId, challengeId },
@@ -405,18 +405,30 @@ export async function forceSyncUser(
     { upsert: true, new: false },
   );
 
-  const wasAlreadyAccepted = prevSub?.status === "Accepted";
-  if (newStatus === "Accepted" && !wasAlreadyAccepted) {
-    const prevStreak = targetCFUser.potdCurrentStreak ?? 0;
-    const newStreak = prevStreak + 1;
-    await CFUser.findOneAndUpdate(
-      { userId: targetUserId },
-      {
-        $inc: { potdTotalPoints: pointsAwarded, potdTotalSolved: 1 },
-        $max: { potdLongestStreak: newStreak },
-        $set: { potdCurrentStreak: newStreak },
-      },
-    );
+  const wasAlreadyFinal =
+    prevSub?.status === "Accepted" || prevSub?.status === "Late";
+
+  if (!wasAlreadyFinal) {
+    if (newStatus === "Accepted") {
+      const prevStreak = targetCFUser.potdCurrentStreak ?? 0;
+      const newStreak = prevStreak + 1;
+      await CFUser.findOneAndUpdate(
+        { userId: targetUserId },
+        {
+          $inc: { potdTotalPoints: pointsAwarded, potdTotalSolved: 1 },
+          $max: { potdLongestStreak: newStreak },
+          $set: { potdCurrentStreak: newStreak },
+        },
+      );
+    } else if (newStatus === "Late") {
+      // Grace solve: award 50% points, do NOT touch streak
+      await CFUser.findOneAndUpdate(
+        { userId: targetUserId },
+        {
+          $inc: { potdTotalPoints: pointsAwarded, potdTotalSolved: 1 },
+        },
+      );
+    }
   }
 
   logger.info("[forceSyncUser] Synced", {

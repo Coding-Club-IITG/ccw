@@ -26,8 +26,8 @@ async function run() {
   // Schedule the CF ratings sync every 24 hours
   await agenda.every("24 hours", "sync-cf-ratings");
 
-  // Schedule POTD sync at 12:30 UTC daily (= 6:00 PM IST, after grace window closes at 12:29 UTC)
-  await agenda.every("0 30 12 * * *", "sync-potd-submissions");
+  // Schedule POTD sync at 2:00 AM IST, after grace window close
+  await agenda.every("0 30 20 * * *", "sync-potd-submissions");
 
   logger.info("[Worker] Agenda started and jobs scheduled.");
 
