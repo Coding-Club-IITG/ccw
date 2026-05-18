@@ -8,10 +8,9 @@ import { logger } from "@/lib/utils";
 import { computePoints } from "@/lib/potd-utils";
 
 const CF_SUBMISSIONS_COUNT = 100;
-const RETRY_DELAY_MS = 5 * 60 * 1000; // 5 minutes between health-check retries
+const RETRY_DELAY_MS = 5 * 60 * 1000; // 5 mins between health-check retries
 const MAX_RETRIES = 6;
-// Codeforces allows about 1 request/s. Using 2.1s protects the server from bans.
-const INTER_USER_DELAY_MS = 2_100;
+const INTER_USER_DELAY_MS = 2_100; // CF allows about 1 request/s, so use 2.1s to prevent ban
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -42,8 +41,8 @@ async function waitForCFApi(): Promise<boolean> {
 
 /**
  * Phase 2: Sync pending submissions
- * For all POTDSubmissions with status=Pending for the challenge that just ended
- * (graceEnd <= now), fetch CF status and update each user atomically.
+ * For all POTDSubmissions with status=Pending for the challenge that just ended,
+ * fetch CF status and update each user atomically.
  */
 async function syncPendingSubmissions(challenge: any): Promise<void> {
   const problem = challenge.problem as any;
@@ -51,6 +50,15 @@ async function syncPendingSubmissions(challenge: any): Promise<void> {
   const windowEnd = challenge.windowEnd as Date;
   const graceEnd = challenge.graceEnd as Date;
   const now = new Date();
+
+  // All challenges for the same day share the same windowStart
+  const todaysChallengeIds: any[] = await DailyChallenge.find({
+    windowStart: challenge.windowStart,
+  }).distinct("_id");
+
+  const otherChallengeIds = todaysChallengeIds.filter(
+    (id) => id.toString() !== challenge._id.toString(),
+  );
 
   const pendingSubs = await POTDSubmission.find({
     challengeId: challenge._id,
@@ -142,25 +150,40 @@ async function syncPendingSubmissions(challenge: any): Promise<void> {
       if (!wasAlreadyFinal) {
         if (newStatus === "Accepted") {
           // Normal solve
-          const prevStreak = cfUser.potdCurrentStreak ?? 0;
-          const newStreak = prevStreak + 1;
-          await CFUser.findOneAndUpdate(
-            { userId: user._id },
-            {
-              $inc: { potdTotalPoints: pointsAwarded, potdTotalSolved: 1 },
-              $max: { potdLongestStreak: newStreak },
-              $set: { potdCurrentStreak: newStreak },
-            },
-          );
+          const alreadySolvedToday =
+            otherChallengeIds.length > 0 &&
+            !!(await POTDSubmission.exists({
+              userId: user._id,
+              challengeId: { $in: otherChallengeIds },
+              status: "Accepted",
+            }));
+
+          if (!alreadySolvedToday) {
+            // Streak increments only on the 1st solve of the day
+            const prevStreak = cfUser.potdCurrentStreak ?? 0;
+            const newStreak = prevStreak + 1;
+            await CFUser.findOneAndUpdate(
+              { userId: user._id },
+              {
+                $inc: { potdTotalPoints: pointsAwarded, potdTotalSolved: 1 },
+                $max: { potdLongestStreak: newStreak },
+                $set: { potdCurrentStreak: newStreak },
+              },
+            );
+          } else {
+            await CFUser.findOneAndUpdate(
+              { userId: user._id },
+              { $inc: { potdTotalPoints: pointsAwarded, potdTotalSolved: 1 } },
+            );
+          }
         } else if (newStatus === "Late") {
           // Grace solve
           await CFUser.findOneAndUpdate(
             { userId: user._id },
-            {
-              $inc: { potdTotalPoints: pointsAwarded, potdTotalSolved: 1 },
-            },
+            { $inc: { potdTotalPoints: pointsAwarded, potdTotalSolved: 1 } },
           );
         }
+        // "NotSolved": streak reset handled in Phase 3
       }
     } catch (err) {
       logger.warn(`[potd-sync] Error syncing ${user.codeforcesId}`, { err });

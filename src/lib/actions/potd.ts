@@ -71,7 +71,7 @@ export async function getTodayChallenge(): Promise<{
   if (challenges.length === 0)
     return { ok: false, error: "No active challenge" };
 
-  // All challenges for a day share the same window — use first
+  // All challenges for a day share the same window — use 1st
   const first = challenges[0] as any;
 
   const entries: ChallengeEntry[] = await Promise.all(
@@ -217,6 +217,14 @@ export async function syncMySubmission(challengeId: string): Promise<{
     const graceEnd = challenge.graceEnd as Date;
     const now = new Date();
 
+    const todaysChallengeIds: any[] = await DailyChallenge.find({
+      windowStart: challenge.windowStart,
+    }).distinct("_id");
+
+    const otherChallengeIds = todaysChallengeIds.filter(
+      (id) => id.toString() !== challengeId,
+    );
+
     // Fetch CF submissions
     const cfUrl = `https://codeforces.com/api/user.status?handle=${encodeURIComponent(user.codeforcesId)}&from=1&count=${CF_SUBMISSIONS_COUNT}`;
 
@@ -232,7 +240,7 @@ export async function syncMySubmission(challengeId: string): Promise<{
       return { ok: false, error: "Failed to reach Codeforces API" };
     }
 
-    // Find first AC for this problem submitted after windowStart
+    // Find 1st AC for this problem submitted after windowStart
     const acceptedSub = cfSubs.find(
       (s: any) =>
         s.verdict === "OK" &&
@@ -284,23 +292,37 @@ export async function syncMySubmission(challengeId: string): Promise<{
     if (!wasAlreadyFinal) {
       if (newStatus === "Accepted") {
         // Normal solve
-        const prevStreak = cfUser.potdCurrentStreak ?? 0;
-        const newStreak = prevStreak + 1;
-        await CFUser.findOneAndUpdate(
-          { userId },
-          {
-            $inc: { potdTotalPoints: pointsAwarded, potdTotalSolved: 1 },
-            $max: { potdLongestStreak: newStreak },
-            $set: { potdCurrentStreak: newStreak },
-          },
-        );
+        const alreadySolvedToday =
+          otherChallengeIds.length > 0 &&
+          !!(await POTDSubmission.exists({
+            userId,
+            challengeId: { $in: otherChallengeIds },
+            status: "Accepted",
+          }));
+
+        if (!alreadySolvedToday) {
+          // Streak increments only on 1st solve of the day
+          const prevStreak = cfUser.potdCurrentStreak ?? 0;
+          const newStreak = prevStreak + 1;
+          await CFUser.findOneAndUpdate(
+            { userId },
+            {
+              $inc: { potdTotalPoints: pointsAwarded, potdTotalSolved: 1 },
+              $max: { potdLongestStreak: newStreak },
+              $set: { potdCurrentStreak: newStreak },
+            },
+          );
+        } else {
+          await CFUser.findOneAndUpdate(
+            { userId },
+            { $inc: { potdTotalPoints: pointsAwarded, potdTotalSolved: 1 } },
+          );
+        }
       } else if (newStatus === "Late") {
         // Grace solve
         await CFUser.findOneAndUpdate(
           { userId },
-          {
-            $inc: { potdTotalPoints: pointsAwarded, potdTotalSolved: 1 },
-          },
+          { $inc: { potdTotalPoints: pointsAwarded, potdTotalSolved: 1 } },
         );
       }
     }
@@ -507,12 +529,7 @@ export async function getPotdLeaderboard(
         as: "cfUser",
       },
     },
-    {
-      $unwind: {
-        path: "$cfUser",
-        preserveNullAndEmptyArrays: true,
-      },
-    },
+    { $unwind: { path: "$cfUser", preserveNullAndEmptyArrays: true } },
     {
       $project: {
         _id: 0,

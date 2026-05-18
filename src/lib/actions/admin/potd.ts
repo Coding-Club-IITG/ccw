@@ -50,29 +50,23 @@ export async function setDailyProblem(
   const session = await checkAdmin();
   if (!session) return { ok: false, error: "Forbidden" };
 
-  if (!dateStr || !cfContestId || !cfIndex || !difficulty) {
+  if (!dateStr || !cfContestId || !cfIndex || !difficulty)
     return { ok: false, error: "Missing required fields" };
-  }
 
-  // Validate dateStr
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr))
     return { ok: false, error: "Invalid date format (YYYY-MM-DD)" };
-  }
 
-  // Allow today and up to 10 days ahead; reject past dates
   const todayIST = getTodayISTDateStr();
-  if (dateStr < todayIST) {
+  if (dateStr < todayIST)
     return { ok: false, error: "Cannot schedule problems for past dates" };
-  }
 
   const tenDaysAhead = (() => {
     const d = new Date(Date.now() + IST_OFFSET_MS);
     d.setUTCDate(d.getUTCDate() + 10);
     return d.toISOString().slice(0, 10);
   })();
-  if (dateStr > tenDaysAhead) {
+  if (dateStr > tenDaysAhead)
     return { ok: false, error: "Cannot schedule more than 10 days in advance" };
-  }
 
   await dbConnect();
 
@@ -80,12 +74,11 @@ export async function setDailyProblem(
 
   // Check if this (date, difficulty) slot is already taken
   const existing = await DailyChallenge.findOne({ windowStart, difficulty });
-  if (existing) {
+  if (existing)
     return {
       ok: false,
       error: `A ${difficulty} problem is already set for this date`,
     };
-  }
 
   // Check if this problem has already been used on any previous day
   const existingProblem = await Problem.findOne({
@@ -124,12 +117,11 @@ export async function setDailyProblem(
         "https://codeforces.com/api/problemset.problems",
         { timeout: 30_000 },
       );
-      if (data.status !== "OK") {
+      if (data.status !== "OK")
         return {
           ok: false,
           error: `CF API error: ${data.comment ?? "unknown"}`,
         };
-      }
       allProblems = data.result.problems;
       await redis.set(CACHE_KEY, JSON.stringify(allProblems), { EX: 86_400 });
     }
@@ -138,12 +130,12 @@ export async function setDailyProblem(
       (p) =>
         p.contestId === cfContestId && p.index.toUpperCase() === indexUpper,
     );
-    if (!cfProblem) {
+    if (!cfProblem)
       return {
         ok: false,
         error: `Problem ${cfContestId}${cfIndex} not found in CF problemset`,
       };
-    }
+
     problemName = cfProblem.name;
     problemRating = cfProblem.rating ?? 0;
     problemTags = cfProblem.tags ?? [];
@@ -254,14 +246,11 @@ export async function deleteScheduledChallenge(
   const challenge = await DailyChallenge.findById(challengeId);
   if (!challenge) return { ok: false, error: "Challenge not found" };
 
-  const now = new Date();
-  // Only block deletion after the window has fully ended (including grace)
-  if (challenge.graceEnd < now) {
+  if (challenge.graceEnd < new Date())
     return {
       ok: false,
       error: "Cannot delete a challenge that has already ended",
     };
-  }
 
   await DailyChallenge.deleteOne({ _id: challengeId });
   revalidatePath("/internal/potd");
@@ -331,14 +320,12 @@ export async function forceSyncUser(
 
   const targetUser = await User.findById(targetUserId);
   if (!targetUser) return { ok: false, error: "User not found" };
-  if (!targetUser.codeforcesId) {
+  if (!targetUser.codeforcesId)
     return { ok: false, error: "User's CF handle not set" };
-  }
 
   const targetCFUser = await CFUser.findOne({ userId: targetUserId });
-  if (!targetCFUser?.cfVerified) {
+  if (!targetCFUser?.cfVerified)
     return { ok: false, error: "User's CF handle not verified" };
-  }
 
   const challenge =
     await DailyChallenge.findById(challengeId).populate("problem");
@@ -349,6 +336,14 @@ export async function forceSyncUser(
   const windowEnd = challenge.windowEnd as Date;
   const graceEnd = challenge.graceEnd as Date;
   const now = new Date();
+
+  const todaysChallengeIds: any[] = await DailyChallenge.find({
+    windowStart: challenge.windowStart,
+  }).distinct("_id");
+
+  const otherChallengeIds = todaysChallengeIds.filter(
+    (id) => id.toString() !== challengeId,
+  );
 
   const cfUrl = `https://codeforces.com/api/user.status?handle=${encodeURIComponent(targetUser.codeforcesId)}&from=1&count=50`;
   let cfSubs: any[] = [];
@@ -410,23 +405,38 @@ export async function forceSyncUser(
 
   if (!wasAlreadyFinal) {
     if (newStatus === "Accepted") {
-      const prevStreak = targetCFUser.potdCurrentStreak ?? 0;
-      const newStreak = prevStreak + 1;
-      await CFUser.findOneAndUpdate(
-        { userId: targetUserId },
-        {
-          $inc: { potdTotalPoints: pointsAwarded, potdTotalSolved: 1 },
-          $max: { potdLongestStreak: newStreak },
-          $set: { potdCurrentStreak: newStreak },
-        },
-      );
+      // Normal solve
+      const alreadySolvedToday =
+        otherChallengeIds.length > 0 &&
+        !!(await POTDSubmission.exists({
+          userId: targetUserId,
+          challengeId: { $in: otherChallengeIds },
+          status: "Accepted",
+        }));
+
+      if (!alreadySolvedToday) {
+        // Streak increments only on 1st solve of the day
+        const prevStreak = targetCFUser.potdCurrentStreak ?? 0;
+        const newStreak = prevStreak + 1;
+        await CFUser.findOneAndUpdate(
+          { userId: targetUserId },
+          {
+            $inc: { potdTotalPoints: pointsAwarded, potdTotalSolved: 1 },
+            $max: { potdLongestStreak: newStreak },
+            $set: { potdCurrentStreak: newStreak },
+          },
+        );
+      } else {
+        await CFUser.findOneAndUpdate(
+          { userId: targetUserId },
+          { $inc: { potdTotalPoints: pointsAwarded, potdTotalSolved: 1 } },
+        );
+      }
     } else if (newStatus === "Late") {
-      // Grace solve: award 50% points, do NOT touch streak
+      // Grace solve
       await CFUser.findOneAndUpdate(
         { userId: targetUserId },
-        {
-          $inc: { potdTotalPoints: pointsAwarded, potdTotalSolved: 1 },
-        },
+        { $inc: { potdTotalPoints: pointsAwarded, potdTotalSolved: 1 } },
       );
     }
   }
