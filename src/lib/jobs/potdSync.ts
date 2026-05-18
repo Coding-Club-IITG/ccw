@@ -1,7 +1,6 @@
 import axios from "axios";
 import dbConnect from "@/lib/mongodb";
 import redis from "@/lib/redis";
-import User from "@/models/User";
 import CFUser from "@/models/CFUser";
 import DailyChallenge from "@/models/POTDDailyChallenge";
 import POTDSubmission from "@/models/POTDSubmission";
@@ -19,8 +18,9 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
- * Phase 1: Health check — verify CF API is reachable.
- * Retries up to MAX_RETRIES times, waiting RETRY_DELAY_MS between attempts.
+ * Phase 1: Health check
+ * Verify CF API is reachable. Retries up to MAX_RETRIES times,
+ * waiting RETRY_DELAY_MS between attempts.
  */
 async function waitForCFApi(): Promise<boolean> {
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
@@ -41,13 +41,10 @@ async function waitForCFApi(): Promise<boolean> {
 }
 
 /**
- * Phase 2: For all POTDSubmissions with status=Pending for the challenge that
- * just ended (graceEnd <= now), fetch CF status and update each user atomically.
+ * Phase 2
+ * For all POTDSubmissions with status=Pending for the challenge that just ended
+ * (graceEnd <= now), fetch CF status and update each user atomically.
  * Skips any submission already marked Accepted.
- *
- * NOTE: codeforcesId lives on User; cfVerified and POTD stats live on CFUser.
- * We populate userId from User to get the handle, then fetch CFUser for
- * verification status and streak data.
  */
 async function syncPendingSubmissions(challenge: any): Promise<void> {
   const problem = challenge.problem as any;
@@ -56,7 +53,6 @@ async function syncPendingSubmissions(challenge: any): Promise<void> {
   const graceEnd = challenge.graceEnd as Date;
   const now = new Date();
 
-  // Populate codeforcesId from User (still lives there).
   const pendingSubs = await POTDSubmission.find({
     challengeId: challenge._id,
     status: { $in: ["Pending"] },
@@ -77,7 +73,6 @@ async function syncPendingSubmissions(challenge: any): Promise<void> {
       continue;
     }
 
-    // Fetch CFUser for verification status and current streak.
     const cfUser = await CFUser.findOne({ userId: user._id });
     if (!cfUser?.cfVerified) {
       if (now > graceEnd) {
@@ -148,7 +143,6 @@ async function syncPendingSubmissions(challenge: any): Promise<void> {
       if (newStatus === "Accepted" && prevSub?.status !== "Accepted") {
         const prevStreak = cfUser.potdCurrentStreak ?? 0;
         const newStreak = prevStreak + 1;
-        // POTD stats now live on CFUser
         await CFUser.findOneAndUpdate(
           { userId: user._id },
           {
@@ -167,8 +161,8 @@ async function syncPendingSubmissions(challenge: any): Promise<void> {
 }
 
 /**
- * Phase 3: Streak reset — for users who did NOT solve ANY challenge today,
- * reset their current streak in CFUser.
+ * Phase 3: Streak reset
+ * For users who did NOT solve ANY challenge today, reset their current streak
  */
 async function resetStreaksForDay(challenges: any[]): Promise<void> {
   if (challenges.length === 0) return;
@@ -181,7 +175,7 @@ async function resetStreaksForDay(challenges: any[]): Promise<void> {
     status: "Accepted",
   }).distinct("userId");
 
-  // Reset potdCurrentStreak on CFUser for everyone else who had an active streak
+  // Reset potdCurrentStreak for everyone else who had an active streak
   const result = await CFUser.updateMany(
     {
       userId: { $nin: solvedUserIds },

@@ -11,7 +11,7 @@ export async function syncCodeforcesRatings() {
   await dbConnect();
 
   try {
-    // 1. Get all users who have set a codeforcesId (codeforcesId remains on User)
+    // 1. Get all users who have set a codeforcesId
     const usersWithCF = await User.find({
       codeforcesId: { $exists: true, $ne: "" },
     }).select("_id codeforcesId");
@@ -21,7 +21,7 @@ export async function syncCodeforcesRatings() {
       return;
     }
 
-    // 2. Build handle → userId[] map (handles are case-insensitive on CF)
+    // 2. Build handle -> userId[] map (handles are case-insensitive on CF)
     const handleToUserIds: Record<string, string[]> = {};
     usersWithCF.forEach((u) => {
       const h = u.codeforcesId.trim();
@@ -47,9 +47,7 @@ export async function syncCodeforcesRatings() {
 
     const cfResults = response.data.result;
 
-    // 4. Upsert CFUser entries — only update CF profile fields (rating, rank,
-    //    avatar, etc.).  POTD stats and verification flags are NOT touched here;
-    //    they are managed by potdSync and the verify-handle route respectively.
+    // 4. Upsert CFUser entries — only update CF profile fields
     const bulkOps = cfResults
       .map((cfData: any) => {
         const lowerHandle = cfData.handle.toLowerCase();
@@ -69,6 +67,15 @@ export async function syncCodeforcesRatings() {
                 maxRank: cfData.maxRank || "Unrated",
                 avatar: cfData.avatar || "",
                 lastUpdated: new Date(),
+              },
+              $setOnInsert: {
+                cfVerified: false,
+                cfVerificationToken: "",
+                cfVerificationRequestedAt: null,
+                potdTotalPoints: 0,
+                potdCurrentStreak: 0,
+                potdLongestStreak: 0,
+                potdTotalSolved: 0,
               },
             },
             upsert: true,
