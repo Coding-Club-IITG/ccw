@@ -16,6 +16,13 @@ export const auth = betterAuth({
 
   secret: process.env.AUTH_SECRET,
   baseURL: process.env.BASE_URL,
+  trustedOrigins: process.env.TRUSTED_ORIGINS
+    ? process.env.TRUSTED_ORIGINS.split(",")
+    : [],
+
+  advanced: {
+    trustedProxyHeaders: true,
+  },
 
   user: {
     modelName: "users",
