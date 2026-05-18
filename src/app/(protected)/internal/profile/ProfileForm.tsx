@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useSession } from "@/lib/auth-client";
 import { updateProfile } from "@/lib/actions/user";
 import { requestHandleVerification } from "@/lib/actions/cf";
+import { getCFStatus } from "@/lib/actions/cfStatus";
 import styles from "./ProfileForm.module.scss";
 
 export default function ProfileForm() {
@@ -27,17 +28,22 @@ export default function ProfileForm() {
   const [cfVerified, setCfVerified] = useState(false);
 
   useEffect(() => {
-    if (session?.user) {
-      setFormData({
-        name: session.user.name || "",
-        codeforcesId: (session.user as any).codeforcesId || "",
-        githubId: (session.user as any).githubId || "",
-        bio: (session.user as any).bio || "",
-        phoneNumber: (session.user as any).phoneNumber || "",
-      });
-      setCfVerified((session.user as any).cfVerified || false);
-      setCfVerificationToken((session.user as any).cfVerificationToken || "");
-    }
+    if (!session?.user) return;
+
+    setFormData({
+      name: session.user.name || "",
+      codeforcesId: (session.user as any).codeforcesId || "",
+      githubId: (session.user as any).githubId || "",
+      bio: (session.user as any).bio || "",
+      phoneNumber: (session.user as any).phoneNumber || "",
+    });
+
+    getCFStatus().then((res) => {
+      if (res.ok) {
+        setCfVerified(res.cfVerified ?? false);
+        setCfVerificationToken(res.cfVerificationToken ?? "");
+      }
+    });
   }, [session]);
 
   async function handleVerifySubmit() {
@@ -245,13 +251,9 @@ export default function ProfileForm() {
                       color: "#fff",
                       cursor: "pointer",
                       fontWeight: "bold",
-                      width: "100%",
-                      transition: "opacity 0.2s",
                     }}
                   >
-                    {verifying
-                      ? "Checking with Codeforces..."
-                      : "Verify Handle"}
+                    {verifying ? "Verifying..." : "Verify Handle"}
                   </button>
                 </div>
               )}
@@ -260,7 +262,7 @@ export default function ProfileForm() {
         </div>
 
         <div className={styles.field}>
-          <label htmlFor="github">GitHub Username</label>
+          <label htmlFor="github">GitHub ID</label>
           <input
             type="text"
             id="github"
@@ -273,49 +275,46 @@ export default function ProfileForm() {
         </div>
 
         <div className={styles.field}>
-          <label htmlFor="phone">Phone Number</label>
-          <input
-            type="text"
-            id="phone"
-            value={formData.phoneNumber}
-            onChange={(e) =>
-              setFormData({ ...formData, phoneNumber: e.target.value })
-            }
-            placeholder="e.g. +91 98765 43210"
-          />
-        </div>
-
-        <div className={styles.field}>
           <label htmlFor="bio">Bio</label>
           <textarea
             id="bio"
             value={formData.bio}
             onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-            placeholder="Tell us about yourself..."
-            rows={4}
-            style={{
-              padding: "0.75rem",
-              border: "1px solid #ddd",
-              borderRadius: "6px",
-              fontSize: "1rem",
-              fontFamily: "inherit",
-            }}
+            placeholder="A short bio about yourself"
+            rows={3}
           />
         </div>
 
-        <button
-          type="submit"
-          className={styles.submitButton}
-          disabled={loading}
-        >
-          {loading ? "Updating..." : "Save Changes"}
-        </button>
+        <div className={styles.field}>
+          <label htmlFor="phone">Phone Number</label>
+          <input
+            type="tel"
+            id="phone"
+            value={formData.phoneNumber}
+            onChange={(e) =>
+              setFormData({ ...formData, phoneNumber: e.target.value })
+            }
+            placeholder="e.g. +91 9876543210"
+          />
+        </div>
 
         {message && (
-          <div className={`${styles.message} ${styles[message.type]}`}>
+          <div
+            style={{
+              padding: "0.75rem 1rem",
+              borderRadius: "6px",
+              background: message.type === "success" ? "#d1fae5" : "#fee2e2",
+              color: message.type === "success" ? "#065f46" : "#991b1b",
+              fontSize: "0.9rem",
+            }}
+          >
             {message.text}
           </div>
         )}
+
+        <button type="submit" disabled={loading} className={styles.saveButton}>
+          {loading ? "Saving..." : "Save Changes"}
+        </button>
       </form>
     </div>
   );

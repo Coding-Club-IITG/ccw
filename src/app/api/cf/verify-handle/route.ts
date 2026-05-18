@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import User from "@/models/User";
+import CFUser from "@/models/CFUser";
 import { dbConnect } from "@/lib/mongodb";
 import redis from "@/lib/redis";
 
@@ -16,8 +17,8 @@ export async function POST(req: Request) {
     }
 
     await dbConnect();
-    const userDoc = await User.findById(session.user.id);
 
+    const userDoc = await User.findById(session.user.id);
     if (!userDoc || !userDoc.codeforcesId) {
       return NextResponse.json(
         { error: "Codeforces ID not set on profile." },
@@ -25,7 +26,8 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!userDoc.cfVerificationToken || userDoc.cfVerified) {
+    const cfUserDoc = await CFUser.findOne({ userId: session.user.id });
+    if (!cfUserDoc?.cfVerificationToken || cfUserDoc.cfVerified) {
       return NextResponse.json(
         { error: "Already verified or no token found." },
         { status: 400 },
@@ -82,11 +84,11 @@ export async function POST(req: Request) {
       );
     }
 
-    if (cfData.result[0].firstName === userDoc.cfVerificationToken) {
-      userDoc.cfVerified = true;
-      userDoc.cfVerificationToken = "";
-      userDoc.cfVerificationRequestedAt = null;
-      await userDoc.save();
+    if (cfData.result[0].firstName === cfUserDoc.cfVerificationToken) {
+      cfUserDoc.cfVerified = true;
+      cfUserDoc.cfVerificationToken = "";
+      cfUserDoc.cfVerificationRequestedAt = null;
+      await cfUserDoc.save();
       return NextResponse.json({
         success: true,
         message: "Handle verified successfully.",
@@ -94,7 +96,7 @@ export async function POST(req: Request) {
     } else {
       return NextResponse.json(
         {
-          error: `Token not found in CF profile. Make sure '${userDoc.cfVerificationToken}' is in your First Name.`,
+          error: `Token not found in CF profile. Make sure '${cfUserDoc.cfVerificationToken}' is in your First Name.`,
         },
         { status: 400 },
       );

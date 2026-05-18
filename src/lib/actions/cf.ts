@@ -3,6 +3,7 @@
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import User from "@/models/User";
+import CFUser from "@/models/CFUser";
 import { dbConnect } from "@/lib/mongodb";
 import { logger } from "@/lib/utils";
 
@@ -29,10 +30,29 @@ export async function requestHandleVerification(
 
     await User.findByIdAndUpdate(session.user.id, {
       codeforcesId: handle,
-      cfVerificationToken: token,
-      cfVerificationRequestedAt: new Date(),
-      cfVerified: false,
     });
+
+    // Upsert a CFUser record to hold the pending verification state
+    await CFUser.findOneAndUpdate(
+      { userId: session.user.id },
+      {
+        $set: {
+          handle,
+          cfVerificationToken: token,
+          cfVerificationRequestedAt: new Date(),
+          cfVerified: false,
+        },
+        $setOnInsert: {
+          userId: session.user.id,
+          rating: 0,
+          rank: "Unrated",
+          maxRating: 0,
+          maxRank: "Unrated",
+          avatar: "",
+        },
+      },
+      { upsert: true, new: true },
+    );
 
     return { ok: true, token };
   } catch (err) {

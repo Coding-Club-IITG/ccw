@@ -8,6 +8,8 @@ const CFUserSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
+
+    // Codeforces profile
     handle: {
       type: String,
       required: true,
@@ -36,6 +38,38 @@ const CFUserSchema = new mongoose.Schema(
     lastUpdated: {
       type: Date,
       default: Date.now,
+    },
+
+    // CF handle verification
+    cfVerified: {
+      type: Boolean,
+      default: false,
+    },
+    cfVerificationToken: {
+      type: String,
+      default: "",
+    },
+    cfVerificationRequestedAt: {
+      type: Date,
+      default: null,
+    },
+
+    // POTD stats
+    potdTotalPoints: {
+      type: Number,
+      default: 0,
+    },
+    potdCurrentStreak: {
+      type: Number,
+      default: 0,
+    },
+    potdLongestStreak: {
+      type: Number,
+      default: 0,
+    },
+    potdTotalSolved: {
+      type: Number,
+      default: 0,
     },
   },
   { timestamps: true },

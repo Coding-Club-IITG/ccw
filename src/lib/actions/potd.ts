@@ -7,12 +7,13 @@ import axios from "axios";
 import dbConnect from "@/lib/mongodb";
 import redis from "@/lib/redis";
 import User from "@/models/User";
+import CFUser from "@/models/CFUser";
 import Problem from "@/models/POTDProblem";
 import DailyChallenge from "@/models/POTDDailyChallenge";
 import POTDSubmission from "@/models/POTDSubmission";
 
 // Ensure models are registered (prevents Next.js compiler from tree-shaking unused model imports)
-[User, Problem, DailyChallenge, POTDSubmission].forEach(
+[User, CFUser, Problem, DailyChallenge, POTDSubmission].forEach(
   (m) => m && m.init && m.init(),
 );
 
@@ -139,7 +140,14 @@ export async function syncMySubmission(challengeId: string): Promise<{
   const userId = session.user.id;
   const user = session.user as any;
 
-  if (!user.cfVerified || !user.codeforcesId) {
+  if (!user.codeforcesId) {
+    return { ok: false, error: "Codeforces handle not set" };
+  }
+
+  await dbConnect();
+
+  const cfUser = await CFUser.findOne({ userId });
+  if (!cfUser?.cfVerified) {
     return { ok: false, error: "Codeforces handle not verified" };
   }
 
@@ -188,8 +196,6 @@ export async function syncMySubmission(challengeId: string): Promise<{
   }
 
   try {
-    await dbConnect();
-
     const challenge =
       await DailyChallenge.findById(challengeId).populate("problem");
     if (!challenge) return { ok: false, error: "Challenge not found" };
@@ -247,8 +253,7 @@ export async function syncMySubmission(challengeId: string): Promise<{
 
     // Points only awarded for solves within the main window (windowStart -> windowEnd)
     if (newStatus === "Accepted" && solvedAt && solvedAt <= windowEnd) {
-      const dbUser = await User.findById(userId);
-      const currentStreak = dbUser?.potdCurrentStreak ?? 0;
+      const currentStreak = cfUser.potdCurrentStreak ?? 0;
       pointsAwarded = computePoints(
         problem.rating,
         solvedAt.getTime(),
@@ -277,17 +282,19 @@ export async function syncMySubmission(challengeId: string): Promise<{
       { upsert: true, new: false },
     );
 
-    // Update user stats only if newly accepted
+    // Update user POTD stats only if newly accepted
     const wasAlreadyAccepted = prevSub?.status === "Accepted";
     if (newStatus === "Accepted" && !wasAlreadyAccepted) {
-      const dbUser = await User.findById(userId);
-      const prevStreak = dbUser?.potdCurrentStreak ?? 0;
+      const prevStreak = cfUser.potdCurrentStreak ?? 0;
       const newStreak = prevStreak + 1;
-      await User.findByIdAndUpdate(userId, {
-        $inc: { potdTotalPoints: pointsAwarded, potdTotalSolved: 1 },
-        $max: { potdLongestStreak: newStreak },
-        $set: { potdCurrentStreak: newStreak },
-      });
+      await CFUser.findOneAndUpdate(
+        { userId },
+        {
+          $inc: { potdTotalPoints: pointsAwarded, potdTotalSolved: 1 },
+          $max: { potdLongestStreak: newStreak },
+          $set: { potdCurrentStreak: newStreak },
+        },
+      );
     }
 
     revalidatePath("/internal/potd");
@@ -331,8 +338,7 @@ export async function getMyPotdStats(): Promise<{
 
   await dbConnect();
 
-  const userDoc = await User.findById(session.user.id);
-  if (!userDoc) return { ok: false, error: "User not found" };
+  const cfUserDoc = await CFUser.findOne({ userId: session.user.id });
 
   const subs = await POTDSubmission.find({
     userId: session.user.id,
@@ -362,10 +368,10 @@ export async function getMyPotdStats(): Promise<{
   return {
     ok: true,
     data: {
-      totalPoints: userDoc.potdTotalPoints ?? 0,
-      currentStreak: userDoc.potdCurrentStreak ?? 0,
-      longestStreak: userDoc.potdLongestStreak ?? 0,
-      totalSolved: userDoc.potdTotalSolved ?? 0,
+      totalPoints: cfUserDoc?.potdTotalPoints ?? 0,
+      currentStreak: cfUserDoc?.potdCurrentStreak ?? 0,
+      longestStreak: cfUserDoc?.potdLongestStreak ?? 0,
+      totalSolved: cfUserDoc?.potdTotalSolved ?? 0,
       recentSubmissions,
     },
   };
@@ -485,6 +491,20 @@ export async function getPotdLeaderboard(
     },
     { $unwind: "$user" },
     {
+      $lookup: {
+        from: "cfusers",
+        localField: "_id",
+        foreignField: "userId",
+        as: "cfUser",
+      },
+    },
+    {
+      $unwind: {
+        path: "$cfUser",
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+    {
       $project: {
         _id: 0,
         userId: { $toString: "$_id" },
@@ -492,7 +512,7 @@ export async function getPotdLeaderboard(
         codeforcesId: "$user.codeforcesId",
         totalPoints: 1,
         totalSolved: 1,
-        currentStreak: "$user.potdCurrentStreak",
+        currentStreak: { $ifNull: ["$cfUser.potdCurrentStreak", 0] },
       },
     },
   ]);
@@ -521,27 +541,30 @@ export async function getStreakLeaderboard(): Promise<{
 
   await dbConnect();
 
-  const users = await User.find(
+  const cfUsers = await CFUser.find(
     { potdTotalSolved: { $gt: 0 } },
     {
-      name: 1,
-      codeforcesId: 1,
+      userId: 1,
       potdCurrentStreak: 1,
       potdLongestStreak: 1,
       potdTotalSolved: 1,
     },
   )
     .sort({ potdCurrentStreak: -1, potdLongestStreak: -1 })
-    .limit(50);
+    .limit(50)
+    .populate("userId", "name codeforcesId");
 
-  const data: StreakEntry[] = users.map((u: any) => ({
-    userId: u._id.toString(),
-    name: u.name ?? "",
-    codeforcesId: u.codeforcesId ?? "",
-    currentStreak: u.potdCurrentStreak ?? 0,
-    longestStreak: u.potdLongestStreak ?? 0,
-    totalSolved: u.potdTotalSolved ?? 0,
-  }));
+  const data: StreakEntry[] = cfUsers.map((cu: any) => {
+    const u = cu.userId as any;
+    return {
+      userId: u?._id?.toString() ?? "",
+      name: u?.name ?? "",
+      codeforcesId: u?.codeforcesId ?? "",
+      currentStreak: cu.potdCurrentStreak ?? 0,
+      longestStreak: cu.potdLongestStreak ?? 0,
+      totalSolved: cu.potdTotalSolved ?? 0,
+    };
+  });
 
   return { ok: true, data };
 }

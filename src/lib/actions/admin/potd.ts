@@ -7,11 +7,12 @@ import axios from "axios";
 import dbConnect from "@/lib/mongodb";
 import redis from "@/lib/redis";
 import User from "@/models/User";
+import CFUser from "@/models/CFUser";
 import Problem from "@/models/POTDProblem";
 import DailyChallenge from "@/models/POTDDailyChallenge";
 import POTDSubmission from "@/models/POTDSubmission";
 
-[User, Problem, DailyChallenge, POTDSubmission].forEach(
+[User, CFUser, Problem, DailyChallenge, POTDSubmission].forEach(
   (m) => m && m.init && m.init(),
 );
 
@@ -33,10 +34,10 @@ async function checkAdmin() {
   return session;
 }
 
-// Set Daily Problem ────────────────────────────────────────────────────────
+// Set Daily Problem
 
 /**
- * Fetch problem metadata from CF API, upsert Problem doc, create DailyChallenge.
+ * Fetch problem metadata from CF API, upsert Problem doc, create DailyChallenge
  * `dateStr` = YYYY-MM-DD in IST. `difficulty` = Easy | Medium | Hard.
  * Same-day scheduling is allowed; the challenge window ends at EOD IST.
  */
@@ -182,7 +183,7 @@ export async function setDailyProblem(
 
 export type ScheduledChallenge = {
   id: string;
-  dateStr: string; // YYYY-MM-DD in IST
+  dateStr: string;
   windowStart: string;
   windowEnd: string;
   difficulty: "Easy" | "Medium" | "Hard";
@@ -220,7 +221,6 @@ export async function getScheduledChallenges(): Promise<{
 
   const data: ScheduledChallenge[] = challenges.map((c: any) => {
     const p = c.problem as any;
-
     const istDate = windowStartToISTDateStr(c.windowStart);
     return {
       id: c._id.toString(),
@@ -244,8 +244,7 @@ export async function getScheduledChallenges(): Promise<{
 // Delete Scheduled Challenge
 
 /**
- * Deletes a scheduled challenge. Allows deleting today's challenge (for editing
- * purposes) as long as the window hasn't fully ended yet.
+ * Deletes a scheduled challenge
  */
 export async function deleteScheduledChallenge(
   challengeId: string,
@@ -317,7 +316,7 @@ export async function getPendingSubmissions(challengeId: string): Promise<{
 // Force Sync User
 
 /**
- * Admin: force a CF sync for a specific user/challenge.
+ * Admin: force a CF sync for a specific user/challenge
  * Respects all locks — aborts if cron is already running.
  */
 export async function forceSyncUser(
@@ -331,7 +330,12 @@ export async function forceSyncUser(
 
   const targetUser = await User.findById(targetUserId);
   if (!targetUser) return { ok: false, error: "User not found" };
-  if (!targetUser.cfVerified || !targetUser.codeforcesId) {
+  if (!targetUser.codeforcesId) {
+    return { ok: false, error: "User's CF handle not set" };
+  }
+
+  const targetCFUser = await CFUser.findOne({ userId: targetUserId });
+  if (!targetCFUser?.cfVerified) {
     return { ok: false, error: "User's CF handle not verified" };
   }
 
@@ -375,7 +379,7 @@ export async function forceSyncUser(
   }
 
   if (newStatus === "Accepted" && solvedAt && solvedAt <= windowEnd) {
-    const currentStreak = targetUser.potdCurrentStreak ?? 0;
+    const currentStreak = targetCFUser.potdCurrentStreak ?? 0;
     pointsAwarded = computePoints(
       problem.rating,
       solvedAt.getTime(),
@@ -403,13 +407,16 @@ export async function forceSyncUser(
 
   const wasAlreadyAccepted = prevSub?.status === "Accepted";
   if (newStatus === "Accepted" && !wasAlreadyAccepted) {
-    const prevStreak = targetUser.potdCurrentStreak ?? 0;
+    const prevStreak = targetCFUser.potdCurrentStreak ?? 0;
     const newStreak = prevStreak + 1;
-    await User.findByIdAndUpdate(targetUserId, {
-      $inc: { potdTotalPoints: pointsAwarded, potdTotalSolved: 1 },
-      $max: { potdLongestStreak: newStreak },
-      $set: { potdCurrentStreak: newStreak },
-    });
+    await CFUser.findOneAndUpdate(
+      { userId: targetUserId },
+      {
+        $inc: { potdTotalPoints: pointsAwarded, potdTotalSolved: 1 },
+        $max: { potdLongestStreak: newStreak },
+        $set: { potdCurrentStreak: newStreak },
+      },
+    );
   }
 
   logger.info("[forceSyncUser] Synced", {
