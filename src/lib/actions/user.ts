@@ -59,6 +59,7 @@ export async function addUser(email: string, name?: string) {
       name: name || email.split("@")[0],
       role: "Member",
       moduleRoles: [],
+      emailVerified: true,
     });
 
     logger.info(`Admin ${adminSession.user.email} added user: ${email}`);

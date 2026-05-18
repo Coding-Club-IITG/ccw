@@ -5,6 +5,7 @@ const UserSchema = new mongoose.Schema(
   {
     name: String,
     email: { type: String, unique: true },
+    emailVerified: { type: Boolean, default: false },
     image: String,
     role: {
       type: String,

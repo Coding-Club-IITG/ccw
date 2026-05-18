@@ -9,6 +9,7 @@ const MONGODB_URI = process.env.MONGODB_URI;
 const UserSchema = new mongoose.Schema({
   name: String,
   email: { type: String, unique: true },
+  emailVerified: { type: Boolean, default: false },
   role: String,
   moduleRoles: Array,
 });
@@ -22,13 +23,13 @@ async function seed() {
     email: "codingclub@iitg.ac.in",
     role: "Secretary",
     moduleRoles: [],
+    emailVerified: true,
   };
-
   await User.findOneAndUpdate({ email: devUser.email }, devUser, {
     upsert: true,
   });
   console.log("✅ Seeded dev user:", devUser.email);
-  mongoose.disconnect();
+  await mongoose.disconnect();
 }
 
 seed();
