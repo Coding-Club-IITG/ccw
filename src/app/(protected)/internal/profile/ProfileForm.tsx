@@ -26,17 +26,21 @@ export default function ProfileForm() {
 
   const [cfVerificationToken, setCfVerificationToken] = useState("");
   const [cfVerified, setCfVerified] = useState(false);
+  // Tracks the last-saved handle so we can detect unsaved edits
+  const [savedCodeforcesId, setSavedCodeforcesId] = useState("");
 
   useEffect(() => {
     if (!session?.user) return;
 
+    const cfHandle = (session.user as any).codeforcesId || "";
     setFormData({
       name: session.user.name || "",
-      codeforcesId: (session.user as any).codeforcesId || "",
+      codeforcesId: cfHandle,
       githubId: (session.user as any).githubId || "",
       bio: (session.user as any).bio || "",
       phoneNumber: (session.user as any).phoneNumber || "",
     });
+    setSavedCodeforcesId(cfHandle);
 
     getCFStatus().then((res) => {
       if (res.ok) {
@@ -102,9 +106,16 @@ export default function ProfileForm() {
         text: result.error || "Failed to update profile.",
       });
     } else {
+      // If the handle changed, the backend has already reset verification —
+      // update local state so the UI immediately shows the verification flow
+      if (result.handleChanged) {
+        setCfVerified(false);
+        setCfVerificationToken("");
+      }
+      setSavedCodeforcesId(formData.codeforcesId);
       setMessage({
         type: "success",
-        text: "Profile updated successfully! Refresh to see changes.",
+        text: "Profile updated successfully!",
       });
     }
   }
@@ -155,14 +166,16 @@ export default function ProfileForm() {
               }
               placeholder="e.g. tourist"
             />
-            {cfVerified && (
+            {/* Only show verified badge if the handle matches the saved (verified) one */}
+            {cfVerified && formData.codeforcesId === savedCodeforcesId && (
               <span style={{ color: "green", fontWeight: "bold" }}>
                 Verified ✓
               </span>
             )}
           </div>
 
-          {formData.codeforcesId && !cfVerified && (
+          {/* Show verification flow if unverified OR if the handle was edited */}
+          {formData.codeforcesId && (!cfVerified || formData.codeforcesId !== savedCodeforcesId) && (
             <div
               style={{
                 marginTop: "12px",
